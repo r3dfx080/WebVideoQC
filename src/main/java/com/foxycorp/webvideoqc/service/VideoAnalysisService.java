@@ -1,7 +1,8 @@
 package com.foxycorp.webvideoqc.service;
 
-import com.foxycorp.webvideoqc.infra.FFprobeClient;
+import com.foxycorp.webvideoqc.infra.FFClient;
 import com.foxycorp.webvideoqc.model.VideoMetadata;
+import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Files;
@@ -9,13 +10,23 @@ import java.nio.file.Path;
 
 @Service
 public class VideoAnalysisService {
-    private final FFprobeClient ffprobeClient;
+    private final FFClient ffClient;
 
-    public VideoAnalysisService(FFprobeClient ffprobeClient) {
-        this.ffprobeClient = ffprobeClient;
+    public VideoAnalysisService(FFClient ffClient) {
+        this.ffClient = ffClient;
     }
 
-    public VideoMetadata analyzeByPath(String rawPath) {
+    public VideoMetadata getMetadataByPath(String rawPath) {
+        return ffClient.getMetadata(getPath(rawPath));
+    }
+
+    public Path analyzeByPath(String rawPath){
+        var path = getPath(rawPath);
+        var videoStats = ffClient.getVideoStats(path);
+        return ffClient.saveVideoStats(videoStats);
+    }
+
+    private static @NonNull Path getPath(String rawPath) {
         if (rawPath == null || rawPath.isBlank()) {
             throw new IllegalArgumentException("Path is required");
         }
@@ -24,7 +35,6 @@ public class VideoAnalysisService {
         if (!Files.exists(path) || !Files.isRegularFile(path)) {
             throw new VideoFileNotFoundException(path.toString());
         }
-
-        return ffprobeClient.probe(path);
+        return path;
     }
 }

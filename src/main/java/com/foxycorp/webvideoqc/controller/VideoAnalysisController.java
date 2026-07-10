@@ -19,9 +19,15 @@ public class VideoAnalysisController {
         this.videoAnalysisService = videoAnalysisService;
     }
 
-    @PostMapping("/analyze-by-path")
-    public ResponseEntity<VideoMetadata> analyzeByPath(@Valid @RequestBody AnalyzeRequest request) {
-        var metadata = videoAnalysisService.analyzeByPath(request.getPath());
+    @PostMapping("/get-metadata-by-path")
+    public ResponseEntity<VideoMetadata> getMetadataByPath(@Valid @RequestBody AnalyzeRequest request) {
+        var metadata = videoAnalysisService.getMetadataByPath(request.getPath());
         return ResponseEntity.ok(metadata);
+    }
+
+    @PostMapping("/analyze-by-path")
+    public ResponseEntity analyzeByPath(@Valid @RequestBody AnalyzeRequest request) {
+        videoAnalysisService.analyzeByPath(request.getPath());
+        return ResponseEntity.ok().build();
     }
 }

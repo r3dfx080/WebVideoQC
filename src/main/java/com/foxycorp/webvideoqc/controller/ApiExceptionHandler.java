@@ -1,4 +1,5 @@
 package com.foxycorp.webvideoqc.controller;
+import com.foxycorp.webvideoqc.infra.FFmpegException;
 import com.foxycorp.webvideoqc.infra.FFprobeException;
 import com.foxycorp.webvideoqc.model.ErrorResponse;
 import com.foxycorp.webvideoqc.service.VideoFileNotFoundException;
@@ -34,9 +35,14 @@ public class ApiExceptionHandler {
     public ResponseEntity<ErrorResponse> ffprobeFailure(FFprobeException ex) {
         String message = ex.getMessage() == null ? "Failed to read video metadata" : ex.getMessage();
         if (message.contains("No video stream found")) {
-            return build(HttpStatus.UNPROCESSABLE_ENTITY, "UNPROCESSABLE_VIDEO", message);
+            return build(HttpStatus.INTERNAL_SERVER_ERROR, "UNPROCESSABLE_VIDEO", message);
         }
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "FFPROBE_ERROR", message);
+    }
+
+    @ExceptionHandler(FFmpegException.class)
+    public ResponseEntity<ErrorResponse> ffmpegFailure(FFmpegException ex) {
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "FFMPEG_ERROR", ex.getMessage());
     }
 
     @ExceptionHandler(Exception.class)

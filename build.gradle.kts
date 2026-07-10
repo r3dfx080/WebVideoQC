@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.foxycorp"
-version = "0.0.1-SNAPSHOT"
+version = "0.2"
 description = "WebVideoQC"
 
 java {

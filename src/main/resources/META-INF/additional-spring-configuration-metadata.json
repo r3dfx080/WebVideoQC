@@ -4,5 +4,10 @@
       "name": "webvideoqc.ffprobe.binary",
       "type": "java.lang.String",
       "description": "ffprobe.exe absolute path"
-  }
-] }
+    },
+    {
+      "name": "webvideoqc.ffmpeg.binary",
+      "type": "java.lang.String",
+      "description": "ffmpeg.exe absolute path"
+    }
+  ] }
