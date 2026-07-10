@@ -1,0 +1,8 @@
+{
+  "properties": [
+    {
+      "name": "webvideoqc.ffprobe.binary",
+      "type": "java.lang.String",
+      "description": "ffprobe.exe absolute path"
+  }
+] }
