@@ -51,7 +51,6 @@ public class FFClient {
 
         try {
             Process process = pb.start();
-
             JsonNode root;
             try (InputStream stdout = process.getInputStream()) {
                 root = objectMapper.readTree(stdout);
@@ -78,7 +77,7 @@ public class FFClient {
 
     /**
      * Gets VideoStats for a passed video file path.
-     * FFmpeg's signalstats is used, resulting .txt is parsed and then deleted
+     * ffprobe's lavfi + signalstats is used, resulting .json is parsed and then deleted
      * @param videoFile absolute path to video file
      * @return VideoStats object for passed video file
      */
@@ -86,24 +85,35 @@ public class FFClient {
         validateInput(videoFile);
         Path statsFile;
         try {
-            statsFile = Files.createFile(Path.of(workDir + "/stats.txt"));
+            statsFile = Files.createTempFile("videoqc-signalstats-", ".json");
         } catch (IOException e) {
             throw new FFmpegException("Unable to allocate temp stats file", e);
         }
 
-        String ffmpegStatsFilePath = escapeForFfmpegMetadataPath(statsFile);
-
         List<String> command = new ArrayList<>();
-        command.add(ffmpegBinary);
-        command.add("-i");
-        command.add(videoFile.toAbsolutePath().toString());
-        command.add("-vf");
-        command.add("signalstats,metadata=print:file=" + ffmpegStatsFilePath);
+
+        command.add(ffprobeBinary);
+        command.add("-v");
+        command.add("error");
+
+        String lavfiPath = videoFile.toAbsolutePath().toString()
+                .replace("\\", "/")
+                .replace(":", "\\:")
+                .replace("'", "\\'");
+
         command.add("-f");
-        command.add("null");
-        command.add("-");
+        command.add("lavfi");
+        command.add("-i");
+        command.add("movie=filename='" + lavfiPath + "',signalstats");
+
+        command.add("-show_frames");
+        command.add("-show_entries");
+        command.add("frame=pts_time:frame_tags=lavfi.signalstats.YLOW,lavfi.signalstats.YHIGH,lavfi.signalstats.YMAX,lavfi.signalstats.YAVG");
+        command.add("-of");
+        command.add("json=compact=1");
 
         ProcessBuilder pb = new ProcessBuilder(command);
+        pb.redirectOutput(statsFile.toFile());
 
         try {
             Process process = pb.start();
@@ -117,24 +127,21 @@ public class FFClient {
             if (exit != 0) {
                 throw new FFmpegException("ffmpeg failed (exit=" + exit + "): " + stderr);
             }
+            VideoMetadata metadata = getMetadata(videoFile);
+            JsonNode statsRoot = objectMapper.readTree(statsFile.toFile());
+            return parseStatsFromJson(statsRoot, metadata);
+
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new FFmpegException("Interrupted while running ffmpeg", e);
+            throw new FFmpegException("Interrupted while running ffprobe", e);
         } catch (IOException e) {
-            throw new FFmpegException("Unable to execute ffmpeg", e);
-        }
-
-        VideoMetadata metadata = getMetadata(videoFile);
-        try {
-            return parseStats(statsFile, metadata);
-        } catch (IOException e) {
-            throw new FFmpegException("Unable to parse ffmpeg signalstats output", e);
+            throw new FFmpegException("Unable to execute ffprobe", e);
         } finally {
-            try {
-                Files.deleteIfExists(statsFile);
-            } catch (IOException e) {
-                throw new FFmpegException("Unable to delete temporary stats file", e);
-            }
+//            try {
+//                Files.deleteIfExists(statsFile);
+//            } catch (IOException e) {
+//                throw new FFmpegException("Unable to delete temporary stats file", e);
+//            }
         }
     }
 
@@ -194,15 +201,18 @@ public class FFClient {
             throw new IllegalArgumentException("videoStats must not be null");
         }
         // TODO: make a proper path resolver
-        Path output = Path.of(stripExtension(workDir) + "\\test.video-stats.json.gz");
+        Path gzipOutput = Path.of(workDir + "\\test.video-stats.json.gz");
+        Path jsonOutput = Path.of(workDir + "\\test.video-stats.json");
 
-        try (OutputStream out = Files.newOutputStream(output);
+        objectMapper.writeValue(jsonOutput.toFile(), videoStats);
+
+        try (OutputStream out = Files.newOutputStream(gzipOutput);
              GZIPOutputStream gzip = new GZIPOutputStream(out)) {
             objectMapper.writeValue(gzip, videoStats);
         } catch (IOException e) {
             throw new FFmpegException("Unable to save compressed video stats JSON", e);
         }
-        return output;
+        return gzipOutput;
     }
 
     private void validateInput(Path videoFile) {
@@ -214,15 +224,41 @@ public class FFClient {
         }
     }
 
-    private String escapeForFfmpegMetadataPath(Path path) {
-        return path.toAbsolutePath().toString()
-                .replace("\\", "/")
-                .replace(":", "\\\\:");
-    }
 
     private String stripExtension(String fileName) {
         int dot = fileName.lastIndexOf('.');
         return dot > 0 ? fileName.substring(0, dot) : fileName;
+    }
+
+    private VideoStats parseStatsFromJson(JsonNode root, VideoMetadata metadata) {
+        List<VideoStats.FrameStats> frames = new ArrayList<>();
+
+        for (JsonNode frame : root.path("frames")) {
+            JsonNode tags = frame.path("tags");
+            if (tags.isMissingNode() || tags.isNull()) continue;
+
+            VideoStats.FrameStats fs = new VideoStats.FrameStats();
+            fs.setYlow(parseInt(tags, "lavfi.signalstats.YLOW"));
+            fs.setYhigh(parseInt(tags, "lavfi.signalstats.YHIGH"));
+            fs.setYmax(parseInt(tags, "lavfi.signalstats.YMAX"));
+            fs.setYavg(parseFloat(tags, "lavfi.signalstats.YAVG"));
+
+            frames.add(fs);
+        }
+
+        return new VideoStats(frames, metadata);
+    }
+
+    private int parseInt(JsonNode tags, String key) {
+        String v = tags.path(key).asString(null);
+        if (v == null || v.isBlank()) return 0;
+        return (int) Double.parseDouble(v);
+    }
+
+    private float parseFloat(JsonNode tags, String key) {
+        String v = tags.path(key).asString(null);
+        if (v == null || v.isBlank()) return 0f;
+        return Float.parseFloat(v);
     }
 
     private VideoMetadata mapToMetadata(JsonNode root) {
