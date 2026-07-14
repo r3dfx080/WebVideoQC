@@ -9,5 +9,10 @@
       "name": "webvideoqc.ffmpeg.binary",
       "type": "java.lang.String",
       "description": "ffmpeg.exe absolute path"
+    },
+    {
+      "name": "webvideoqc.ffprobe.timeout-seconds",
+      "type": "java.lang.String",
+      "description": "ffprobe process timeout in seconds"
     }
   ] }

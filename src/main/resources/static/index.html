@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebVideoQC Report</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 24px;
+      color: #202124;
+    }
+    .row {
+      margin-bottom: 16px;
+    }
+    #meta {
+      white-space: pre-wrap;
+      background: #f5f6f8;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 13px;
+    }
+    .hint {
+      color: #5f6368;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+<h1>WebVideoQC — Report</h1>
+<div class="row">
+  <button id="loadBtn">Загрузить последний отчет</button>
+</div>
+<div class="row hint">
+  Ожидается файл <code>test.video-stats.json</code> в корне проекта.
+</div>
+<div class="row">
+  <h3>Metadata</h3>
+  <div id="meta">Нет данных</div>
+</div>
+<div class="row">
+  <h3>Luma chart</h3>
+  <canvas id="lumaChart" height="120"></canvas>
+</div>
+<script>
+  let chart;
+  async function fetchLatestReport() {
+    const urls = ["/api/videos/reports/latest", "/reports/latest"];
+    let lastError = null;
+    for (const url of urls) {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          lastError = new Error("HTTP " + response.status + " for " + url);
+          continue;
+        }
+        return await response.json();
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    throw lastError || new Error("Report endpoint not available");
+  }
+
+  function drawChart(report) {
+    const frames = report.frameStatsList || [];
+    const labels = frames.map((_, i) => i);
+    const data = {
+      labels: labels,
+      datasets: [
+        {label: "YAVG", data: frames.map(f => f.yavg), borderWidth: 1, pointRadius: 0},
+        {label: "YMAX", data: frames.map(f => f.ymax), borderWidth: 1, pointRadius: 0},
+        {label: "YHIGH", data: frames.map(f => f.yhigh), borderWidth: 1, pointRadius: 0},
+        {label: "YLOW", data: frames.map(f => f.ylow), borderWidth: 1, pointRadius: 0}
+      ]
+    };
+    if (chart) {
+      chart.destroy();
+    }
+    chart = new Chart(document.getElementById("lumaChart"), {
+      type: "line",
+      data: data,
+      options: {
+        animation: false,
+        responsive: true,
+        scales: {
+          x: {title: {display: true, text: "Frame"}},
+          y: {title: {display: true, text: "Luma"}, min: 0, max: 255}
+        }
+      }
+    });
+  }
+
+  async function loadReport() {
+    const meta = document.getElementById("meta");
+    meta.textContent = "Загрузка...";
+    try {
+      const report = await fetchLatestReport();
+      meta.textContent = JSON.stringify(report.videoMetadata, null, 2);
+      drawChart(report);
+    } catch (e) {
+      meta.textContent = "Не удалось загрузить отчет: " + e.message;
+    }
+  }
+
+  document.getElementById("loadBtn").addEventListener("click", loadReport);
+</script>
+</body>
+</html>

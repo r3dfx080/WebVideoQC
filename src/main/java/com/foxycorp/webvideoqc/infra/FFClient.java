@@ -87,7 +87,7 @@ public class FFClient {
         try {
             statsFile = Files.createTempFile("videoqc-signalstats-", ".json");
         } catch (IOException e) {
-            throw new FFmpegException("Unable to allocate temp stats file", e);
+            throw new FFprobeException("Unable to allocate temp stats file", e);
         }
 
         List<String> command = new ArrayList<>();
@@ -125,7 +125,7 @@ public class FFClient {
 
             int exit = process.waitFor();
             if (exit != 0) {
-                throw new FFmpegException("ffmpeg failed (exit=" + exit + "): " + stderr);
+                throw new FFprobeException("ffmpeg failed (exit=" + exit + "): " + stderr);
             }
             VideoMetadata metadata = getMetadata(videoFile);
             JsonNode statsRoot = objectMapper.readTree(statsFile.toFile());
@@ -133,14 +133,14 @@ public class FFClient {
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new FFmpegException("Interrupted while running ffprobe", e);
+            throw new FFprobeException("Interrupted while running ffprobe", e);
         } catch (IOException e) {
-            throw new FFmpegException("Unable to execute ffprobe", e);
+            throw new FFprobeException("Unable to execute ffprobe", e);
         } finally {
 //            try {
 //                Files.deleteIfExists(statsFile);
 //            } catch (IOException e) {
-//                throw new FFmpegException("Unable to delete temporary stats file", e);
+//                throw new FFprobeException("Unable to delete temporary stats file", e);
 //            }
         }
     }
