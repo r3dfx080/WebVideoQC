@@ -203,7 +203,6 @@ public class FFClient {
         // TODO: make a proper path resolver
         Path gzipOutput = Path.of(workDir + "\\test.video-stats.json.gz");
         Path jsonOutput = Path.of(workDir + "\\test.video-stats.json");
-
         objectMapper.writeValue(jsonOutput.toFile(), videoStats);
 
         try (OutputStream out = Files.newOutputStream(gzipOutput);
@@ -215,6 +214,57 @@ public class FFClient {
         return gzipOutput;
     }
 
+    public byte[] renderFrame(Path videoFile, int frameNumber, boolean overlay) {
+        validateInput(videoFile);
+
+        String selectFilter = "select='eq(n\\," + frameNumber + ")'";
+        String filter = overlay ? selectFilter + ",signalstats=out=brng:color=red" : selectFilter;
+
+        List<String> command = new ArrayList<>();
+        command.add(ffmpegBinary);
+        command.add("-v");
+        command.add("error");
+        command.add("-i");
+        command.add(videoFile.toAbsolutePath().toString());
+        command.add("-vf");
+        command.add(filter);
+        command.add("-frames:v");
+        command.add("1");
+        command.add("-f");
+        command.add("image2pipe");
+        command.add("-vcodec");
+        command.add("mjpeg");
+        command.add("-");
+
+        ProcessBuilder pb = new ProcessBuilder(command);
+
+        try {
+            Process process = pb.start();
+            byte[] imageBytes;
+            try (InputStream stdout = process.getInputStream()) {
+                imageBytes = stdout.readAllBytes();
+            }
+
+            String stderr;
+            try (InputStream err = process.getErrorStream()) {
+                stderr = new String(err.readAllBytes());
+            }
+
+            int exit = process.waitFor();
+            if (exit != 0) {
+                throw new FFmpegException("ffmpeg preview failed (exit=" + exit + "): " + stderr);
+            }
+            if (imageBytes.length == 0) {
+                throw new FFmpegException("ffmpeg preview returned empty image");
+            }
+            return imageBytes;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new FFmpegException("Interrupted while rendering frame preview", e);
+        } catch (IOException e) {
+            throw new FFmpegException("Unable to execute ffmpeg for frame preview", e);
+        }
+    }
     private void validateInput(Path videoFile) {
         if (videoFile == null) {
             throw new IllegalArgumentException("videoFile must not be null");

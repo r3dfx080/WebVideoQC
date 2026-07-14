@@ -26,6 +26,10 @@ public class VideoAnalysisService {
         return ffClient.saveVideoStats(videoStats);
     }
 
+    public byte[] getFramePreview(String rawPath, int frame, boolean overlay) {
+        return ffClient.renderFrame(getPath(rawPath), frame, overlay);
+    }
+
     private static @NonNull Path getPath(String rawPath) {
         if (rawPath == null || rawPath.isBlank()) {
             throw new IllegalArgumentException("Path is required");

@@ -5,10 +5,12 @@ import com.foxycorp.webvideoqc.model.VideoMetadata;
 import com.foxycorp.webvideoqc.model.VideoStats;
 import com.foxycorp.webvideoqc.service.VideoAnalysisService;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.ObjectMapper;
@@ -40,7 +42,7 @@ public class VideoAnalysisController {
     }
 
     @GetMapping("/reports/latest")
-    public ResponseEntity<VideoStats> latestReport() throws Exception {
+    public ResponseEntity<VideoStats> latestReport() {
         Path reportPath = Path.of(System.getProperty("user.dir"), "test.video-stats.json");
 
         if (!reportPath.toFile().exists()) {
@@ -49,5 +51,15 @@ public class VideoAnalysisController {
 
         VideoStats stats = objectMapper.readValue(reportPath.toFile(), VideoStats.class);
         return ResponseEntity.ok(stats);
+    }
+
+    @GetMapping(value = "/frame-preview", produces = MediaType.IMAGE_JPEG_VALUE)
+    public ResponseEntity<byte[]> framePreview(
+            @RequestParam("path") String path,
+            @RequestParam("frame") int frame,
+            @RequestParam(value = "overlay", defaultValue = "false") boolean overlay
+    ) {
+        byte[] image = videoAnalysisService.getFramePreview(path, frame, overlay);
+        return ResponseEntity.ok(image);
     }
 }
