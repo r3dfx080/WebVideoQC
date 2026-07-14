@@ -1,50 +1,71 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WebVideoQC Report</title>
+  <link rel="stylesheet" href="/styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 24px;
-      color: #202124;
-    }
-    .row {
-      margin-bottom: 16px;
-    }
-    #meta {
-      white-space: pre-wrap;
-      background: #f5f6f8;
-      border-radius: 8px;
-      padding: 12px;
-      font-size: 13px;
-    }
-    .hint {
-      color: #5f6368;
-      font-size: 13px;
-    }
-  </style>
 </head>
 <body>
 <h1>WebVideoQC — Report</h1>
-<div class="row">
-  <button id="loadBtn">Загрузить последний отчет</button>
-</div>
-<div class="row hint">
-  Ожидается файл <code>test.video-stats.json</code> в корне проекта.
-</div>
-<div class="row">
-  <h3>Metadata</h3>
-  <div id="meta">Нет данных</div>
-</div>
-<div class="row">
-  <h3>Luma chart</h3>
-  <canvas id="lumaChart" height="120"></canvas>
+<div class="layout-grid">
+  <section class="panel panel-workdir">
+    <h2 class="panel-title">Work dir files</h2>
+    <div class="placeholder">Placeholder for future work-directory file list.</div>
+    <label class="placeholder-input-label" for="videoPath">Temporary video path (current element)</label>
+    <input id="videoPath" type="text" placeholder="N:\path\to\video.mkv">
+  </section>
+
+  <section class="panel panel-actions">
+    <h2 class="panel-title">Analyze / Load</h2>
+    <div class="placeholder-stack">
+      <div class="placeholder-chip">Analyze placeholder</div>
+      <div class="placeholder-chip">Load placeholder</div>
+    </div>
+  </section>
+
+  <section class="panel panel-reports">
+    <h2 class="panel-title">Previous reports here</h2>
+    <div class="placeholder">Placeholder for future reports list.</div>
+  </section>
+
+  <section class="panel panel-spacer">
+    <div class="placeholder">Reserved placeholder area.</div>
+  </section>
+
+  <section class="panel panel-metadata">
+    <h2 class="panel-title">Metadata</h2>
+    <div id="meta">No data</div>
+  </section>
+
+  <section class="panel panel-chart">
+    <h2 class="panel-title">XY chart</h2>
+    <div id="lumaChartScroll" class="chart-scroll">
+      <div id="lumaChartInner" class="chart-inner">
+        <canvas id="lumaChart"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel panel-preview">
+    <h2 class="panel-title">Frame preview</h2>
+    <label class="overlay-option">
+      <input id="overlayToggle" type="checkbox" checked> Overlay signalstats
+    </label>
+    <div id="previewInfo">Click a chart point to preview a frame.</div>
+    <img id="previewImage" alt="frame preview">
+  </section>
 </div>
 <script>
   let chart;
+  let previewObjectUrl;
+  let currentPreviewFrame = null;
+  let xZoomScale = 1;
+  const MIN_X_ZOOM_SCALE = 1;
+  const MAX_X_ZOOM_SCALE = 20;
+  const WHEEL_ZOOM_SENSITIVITY = 0.0015;
+
   async function fetchLatestReport() {
     const urls = ["/api/videos/reports/latest", "/reports/latest"];
     let lastError = null;
@@ -63,48 +84,187 @@
     throw lastError || new Error("Report endpoint not available");
   }
 
+  function getChartViewportWidth(chartScroll) {
+    return Math.max(1, chartScroll.clientWidth);
+  }
+
+  function applyHorizontalZoom() {
+    const chartScroll = document.getElementById("lumaChartScroll");
+    const chartInner = document.getElementById("lumaChartInner");
+    if (!chartScroll || !chartInner) {
+      return;
+    }
+    const baseWidth = getChartViewportWidth(chartScroll);
+    const zoomedWidth = Math.max(1, Math.round(baseWidth * xZoomScale));
+    chartInner.style.width = zoomedWidth + "px";
+    if (chart) {
+      chart.resize();
+    }
+  }
+
+  function onChartWheel(event) {
+    const chartScroll = event.currentTarget;
+    const chartInner = document.getElementById("lumaChartInner");
+    if (!chartScroll || !chartInner) {
+      return;
+    }
+    event.preventDefault();
+
+    const previousScale = xZoomScale;
+    const zoomFactor = Math.exp(-event.deltaY * WHEEL_ZOOM_SENSITIVITY);
+    const nextScale = Math.max(MIN_X_ZOOM_SCALE, Math.min(MAX_X_ZOOM_SCALE, previousScale * zoomFactor));
+    if (Math.abs(nextScale - previousScale) < 0.0001) {
+      return;
+    }
+
+    const rect = chartScroll.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const previousContentWidth = Math.max(1, chartInner.getBoundingClientRect().width);
+    const anchorRatio = (chartScroll.scrollLeft + mouseX) / previousContentWidth;
+
+    xZoomScale = nextScale;
+    applyHorizontalZoom();
+
+    const nextContentWidth = Math.max(1, chartInner.getBoundingClientRect().width);
+    const nextAnchorX = anchorRatio * nextContentWidth;
+    const maxScrollLeft = Math.max(0, nextContentWidth - getChartViewportWidth(chartScroll));
+    chartScroll.scrollLeft = Math.min(maxScrollLeft, Math.max(0, nextAnchorX - mouseX));
+  }
+
+  function setupChartZoom() {
+    const chartScroll = document.getElementById("lumaChartScroll");
+    if (!chartScroll || chartScroll.dataset.zoomInitialized === "true") {
+      return;
+    }
+    chartScroll.addEventListener("wheel", onChartWheel, { passive: false });
+    chartScroll.dataset.zoomInitialized = "true";
+  }
+
+  function setupOverlayToggleRerender() {
+    const overlayToggle = document.getElementById("overlayToggle");
+    if (!overlayToggle || overlayToggle.dataset.rerenderInitialized === "true") {
+      return;
+    }
+    overlayToggle.addEventListener("change", () => {
+      if (currentPreviewFrame === null) {
+        return;
+      }
+      loadFramePreview(currentPreviewFrame);
+    });
+    overlayToggle.dataset.rerenderInitialized = "true";
+  }
+
   function drawChart(report) {
     const frames = report.frameStatsList || [];
     const labels = frames.map((_, i) => i);
+    const chartScroll = document.getElementById("lumaChartScroll");
+
+    xZoomScale = 1;
+    applyHorizontalZoom();
+    if (chartScroll) {
+      chartScroll.scrollLeft = 0;
+    }
+
+    const canvas = document.getElementById("lumaChart");
+    const existingChart = typeof Chart.getChart === "function" ? Chart.getChart(canvas) : null;
     const data = {
       labels: labels,
       datasets: [
-        {label: "YAVG", data: frames.map(f => f.yavg), borderWidth: 1, pointRadius: 0},
-        {label: "YMAX", data: frames.map(f => f.ymax), borderWidth: 1, pointRadius: 0},
-        {label: "YHIGH", data: frames.map(f => f.yhigh), borderWidth: 1, pointRadius: 0},
-        {label: "YLOW", data: frames.map(f => f.ylow), borderWidth: 1, pointRadius: 0}
+        { label: "YAVG", data: frames.map(f => f.yavg), borderWidth: 1, pointRadius: 0 },
+        { label: "YMAX", data: frames.map(f => f.ymax), borderWidth: 1, pointRadius: 0 },
+        { label: "YHIGH", data: frames.map(f => f.yhigh), borderWidth: 1, pointRadius: 0 },
+        { label: "YLOW", data: frames.map(f => f.ylow), borderWidth: 1, pointRadius: 0 }
       ]
     };
-    if (chart) {
+
+    if (existingChart) {
+      existingChart.destroy();
+    }
+    if (chart && chart !== existingChart) {
       chart.destroy();
     }
-    chart = new Chart(document.getElementById("lumaChart"), {
-      type: "line",
-      data: data,
-      options: {
-        animation: false,
-        responsive: true,
-        scales: {
-          x: {title: {display: true, text: "Frame"}},
-          y: {title: {display: true, text: "Luma"}, min: 0, max: 255}
+    chart = null;
+
+    try {
+      chart = new Chart(canvas, {
+        type: "line",
+        data: data,
+        options: {
+          animation: false,
+          responsive: true,
+          maintainAspectRatio: false,
+          onClick: (evt, elements) => {
+            if (!elements || !elements.length) {
+              return;
+            }
+            const frame = elements[0].index;
+            loadFramePreview(frame);
+          },
+          scales: {
+            x: { title: { display: true, text: "Frame" } },
+            y: { title: { display: true, text: "Luma" }, min: 0, max: 255 }
+          }
         }
+      });
+    } catch (e) {
+      const orphanChart = typeof Chart.getChart === "function" ? Chart.getChart(canvas) : null;
+      if (orphanChart) {
+        orphanChart.destroy();
       }
-    });
+      chart = null;
+      throw e;
+    }
   }
 
   async function loadReport() {
     const meta = document.getElementById("meta");
-    meta.textContent = "Загрузка...";
+    meta.textContent = "Loading...";
     try {
       const report = await fetchLatestReport();
       meta.textContent = JSON.stringify(report.videoMetadata, null, 2);
       drawChart(report);
     } catch (e) {
-      meta.textContent = "Не удалось загрузить отчет: " + e.message;
+      meta.textContent = "Failed to load report: " + e.message;
     }
   }
 
-  document.getElementById("loadBtn").addEventListener("click", loadReport);
+  async function loadFramePreview(frame) {
+    currentPreviewFrame = frame;
+    const videoPath = document.getElementById("videoPath").value.trim();
+    const overlay = document.getElementById("overlayToggle").checked;
+    const info = document.getElementById("previewInfo");
+    const image = document.getElementById("previewImage");
+
+    if (!videoPath) {
+      info.textContent = "Set temporary video path in the Work dir files block first.";
+      return;
+    }
+
+    info.textContent = "Loading frame " + frame + "...";
+    try {
+      const url = "/api/videos/frame-preview?path=" + encodeURIComponent(videoPath)
+          + "&frame=" + encodeURIComponent(frame)
+          + "&overlay=" + encodeURIComponent(overlay);
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("HTTP " + response.status);
+      }
+      const blob = await response.blob();
+      if (previewObjectUrl) {
+        URL.revokeObjectURL(previewObjectUrl);
+      }
+      previewObjectUrl = URL.createObjectURL(blob);
+      image.src = previewObjectUrl;
+      info.textContent = "Frame #" + frame;
+    } catch (e) {
+      info.textContent = "Failed to load frame: " + e.message;
+    }
+  }
+
+  setupChartZoom();
+  setupOverlayToggleRerender();
+  window.addEventListener("resize", applyHorizontalZoom);
+  loadReport();
 </script>
 </body>
 </html>
