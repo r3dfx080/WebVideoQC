@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.nio.file.Path;
 import java.util.List;
 
 // video stats from signalstats (ffmpeg) & metadata from ffprobe
@@ -13,17 +14,24 @@ import java.util.List;
 @Setter
 public class VideoStats {
     // TODO: implement md5(?) for fast checking
-
+    private Path videoPath;
     private List<FrameStats> frameStatsList;
     private VideoMetadata videoMetadata;
 
     @Data
     public static class FrameStats {
-
         private int ylow;
         private int yhigh;
         private int ymax;
         private float yavg;
+    }
+
+    public boolean isSD() {
+        return videoMetadata.height() == 576 || videoMetadata.height() == 480 || videoMetadata.height() == 486;
+    }
+
+    public boolean isPAL() {
+        return videoMetadata.height() == 576;
     }
 
 }

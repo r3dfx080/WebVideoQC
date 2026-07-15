@@ -2,6 +2,7 @@ package com.foxycorp.webvideoqc.service;
 
 import com.foxycorp.webvideoqc.infra.FFClient;
 import com.foxycorp.webvideoqc.model.VideoMetadata;
+import com.foxycorp.webvideoqc.model.VideoStats;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
 
@@ -40,5 +41,18 @@ public class VideoAnalysisService {
             throw new VideoFileNotFoundException(path.toString());
         }
         return path;
+    }
+
+    public boolean videoExists(Path path) {
+        return Files.exists(path) && !Files.isRegularFile(path);
+    }
+
+    /**
+     * @param currentPath path of video for comparison
+     * @param currentMetadata metadata of video for comparison
+     * @param existingStats existing VideoStats instance
+     */
+    public boolean isEqual(Path currentPath, VideoMetadata currentMetadata, VideoStats existingStats){
+        return currentPath.equals(existingStats.getVideoPath()) && currentMetadata.equals(existingStats.getVideoMetadata());
     }
 }

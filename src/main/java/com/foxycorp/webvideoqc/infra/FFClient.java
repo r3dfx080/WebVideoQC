@@ -129,7 +129,7 @@ public class FFClient {
             }
             VideoMetadata metadata = getMetadata(videoFile);
             JsonNode statsRoot = objectMapper.readTree(statsFile.toFile());
-            return parseStatsFromJson(statsRoot, metadata);
+            return parseStatsFromJson(videoFile, statsRoot, metadata);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -146,51 +146,51 @@ public class FFClient {
     }
 
 
-    /**
-     * Returns VideoStats object with embedded metadata & frame-by-frame statistics
-     * @param statsFile .txt file with frame-by-frame statistics from ffmpeg.exe
-     * @param metadata video metadata
-     * @return VideoStats
-     */
-    public VideoStats parseStats(Path statsFile, VideoMetadata metadata) throws IOException {
-        List<VideoStats.FrameStats> frames = new ArrayList<>();
-        VideoStats.FrameStats current = null;
-
-        for (String raw : Files.readAllLines(statsFile)) {
-            String line = raw.trim();
-            if (line.isEmpty()) {
-                continue;
-            }
-
-            if (line.startsWith("frame:")) {
-                if (current != null) {
-                    frames.add(current);
-                }
-                current = new VideoStats.FrameStats();
-                continue;
-            }
-
-            if (current == null || line.indexOf('=') < 0) {
-                continue;
-            }
-
-            double value = Double.parseDouble(line.substring(line.indexOf('=') + 1));
-            if (line.startsWith("lavfi.signalstats.YLOW=")) {
-                current.setYlow((int) value);
-            } else if (line.startsWith("lavfi.signalstats.YHIGH=")) {
-                current.setYhigh((int) value);
-            } else if (line.startsWith("lavfi.signalstats.YMAX=")) {
-                current.setYmax((int) value);
-            } else if (line.startsWith("lavfi.signalstats.YAVG=")) {
-                current.setYavg((float) value);
-            }
-        }
-
-        if (current != null) {
-            frames.add(current);
-        }
-        return new VideoStats(frames, metadata);
-    }
+//    /**
+//     * Returns VideoStats object with embedded metadata & frame-by-frame statistics
+//     * @param statsFile .txt file with frame-by-frame statistics from ffmpeg.exe
+//     * @param metadata video metadata
+//     * @return VideoStats
+//     */
+//    public VideoStats parseStats(Path statsFile, VideoMetadata metadata) throws IOException {
+//        List<VideoStats.FrameStats> frames = new ArrayList<>();
+//        VideoStats.FrameStats current = null;
+//
+//        for (String raw : Files.readAllLines(statsFile)) {
+//            String line = raw.trim();
+//            if (line.isEmpty()) {
+//                continue;
+//            }
+//
+//            if (line.startsWith("frame:")) {
+//                if (current != null) {
+//                    frames.add(current);
+//                }
+//                current = new VideoStats.FrameStats();
+//                continue;
+//            }
+//
+//            if (current == null || line.indexOf('=') < 0) {
+//                continue;
+//            }
+//
+//            double value = Double.parseDouble(line.substring(line.indexOf('=') + 1));
+//            if (line.startsWith("lavfi.signalstats.YLOW=")) {
+//                current.setYlow((int) value);
+//            } else if (line.startsWith("lavfi.signalstats.YHIGH=")) {
+//                current.setYhigh((int) value);
+//            } else if (line.startsWith("lavfi.signalstats.YMAX=")) {
+//                current.setYmax((int) value);
+//            } else if (line.startsWith("lavfi.signalstats.YAVG=")) {
+//                current.setYavg((float) value);
+//            }
+//        }
+//
+//        if (current != null) {
+//            frames.add(current);
+//        }
+//        return new VideoStats(frames, metadata);
+//    }
 
     /**
      * Saves VideoStats object into a compressed json
@@ -280,7 +280,7 @@ public class FFClient {
         return dot > 0 ? fileName.substring(0, dot) : fileName;
     }
 
-    private VideoStats parseStatsFromJson(JsonNode root, VideoMetadata metadata) {
+    private VideoStats parseStatsFromJson(Path path, JsonNode root, VideoMetadata metadata) {
         List<VideoStats.FrameStats> frames = new ArrayList<>();
 
         for (JsonNode frame : root.path("frames")) {
@@ -296,7 +296,7 @@ public class FFClient {
             frames.add(fs);
         }
 
-        return new VideoStats(frames, metadata);
+        return new VideoStats(path, frames, metadata);
     }
 
     private int parseInt(JsonNode tags, String key) {
