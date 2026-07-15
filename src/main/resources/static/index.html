@@ -58,6 +58,7 @@
   let chart;
   let previewObjectUrl;
   let currentPreviewFrame = null;
+  let latestReport = null;
   let xZoomScale = 1;
   let pendingZoomFrame = null;
   let pendingWheelPayload = null;
@@ -301,11 +302,8 @@
     meta.textContent = "Loading...";
     try {
       const report = await fetchLatestReport();
+      latestReport = report;
       renderMetadata(report);
-      const videoPathInput = document.getElementById("videoPath");
-      if (videoPathInput && report.videoPath) {
-        videoPathInput.value = report.videoPath;
-      }
       drawChart(report);
     } catch (e) {
       meta.textContent = "Failed to load report: " + e.message;
@@ -314,7 +312,9 @@
 
   async function loadFramePreview(frame) {
     currentPreviewFrame = frame;
-    const videoPath = document.getElementById("videoPath").value.trim();
+    const videoPath = latestReport && latestReport.videoPath
+      ? String(latestReport.videoPath).trim()
+      : "";
     const overlay = document.getElementById("overlayToggle").checked;
     const info = document.getElementById("previewInfo");
     const image = document.getElementById("previewImage");
