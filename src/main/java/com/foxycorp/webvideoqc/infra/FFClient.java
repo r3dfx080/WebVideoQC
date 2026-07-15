@@ -85,7 +85,7 @@ public class FFClient {
         validateInput(videoFile);
         Path statsFile;
         try {
-            statsFile = Files.createTempFile("videoqc-signalstats-", ".json");
+            statsFile = Files.createFile(Path.of(workDir + "\\temp-signalstats.json"));
         } catch (IOException e) {
             throw new FFprobeException("Unable to allocate temp stats file", e);
         }
@@ -348,17 +348,19 @@ public class FFClient {
         String colorRange = videoStream.path("color_range").asString("unknown");
         String avgFrameRate = videoStream.path("avg_frame_rate").asString("0/0");
         double fps = parseFps(avgFrameRate);
+        int bitDepth = videoStream.path("bits_per_raw_sample").asInt(0);
 
         return new VideoMetadata(
                 width,
                 height,
                 codec,
                 pixFmt,
-                fieldOrder,
                 colorRange,
+                fieldOrder,
                 fps,
                 Duration.ofMillis((long) (durationSec * 1000)),
-                bitRate
+                bitRate,
+                bitDepth
         );
     }
 

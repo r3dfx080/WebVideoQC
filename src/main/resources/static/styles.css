@@ -111,7 +111,6 @@ h1 {
   box-sizing: border-box;
 }
 #meta {
-  white-space: pre-wrap;
   background: #fff;
   border-radius: 8px;
   padding: 12px;
@@ -121,9 +120,39 @@ h1 {
   overflow: auto;
   flex: 1;
 }
+.meta-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.meta-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 180px) 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 6px 8px;
+  border: 1px solid #e2e5e9;
+  border-radius: 6px;
+  background: #f9fbff;
+}
+.meta-label {
+  color: #4f5968;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.meta-value {
+  color: #202124;
+  font-size: 13px;
+  word-break: break-word;
+}
 .chart-scroll {
   overflow-x: auto;
   overflow-y: hidden;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+  scrollbar-gutter: stable both-edges;
   border: 1px solid #e2e5e9;
   border-radius: 8px;
   background: #fff;

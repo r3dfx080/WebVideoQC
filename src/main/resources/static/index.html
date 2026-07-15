@@ -3,18 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WebVideoQC Report</title>
+  <title>WebVideoQC</title>
   <link rel="stylesheet" href="/styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-<h1>WebVideoQC — Report</h1>
+<h1>WebVideoQC</h1>
 <div class="layout-grid">
   <section class="panel panel-workdir">
-    <h2 class="panel-title">Work dir files</h2>
+    <h2 class="panel-title">Workdir files</h2>
     <div class="placeholder"></div>
-    <label class="placeholder-input-label" for="videoPath">Temporary video path (current element)</label>
-    <input id="videoPath" type="text" placeholder="N:\path\to\video.mkv">
   </section>
 
   <section class="panel panel-actions">
@@ -61,6 +59,8 @@
   let previewObjectUrl;
   let currentPreviewFrame = null;
   let xZoomScale = 1;
+  let pendingZoomFrame = null;
+  let pendingWheelPayload = null;
   const MIN_X_ZOOM_SCALE = 1;
   const MAX_X_ZOOM_SCALE = 20;
   const WHEEL_ZOOM_SENSITIVITY = 0.0015;
@@ -83,6 +83,66 @@
     throw lastError || new Error("Report endpoint not available");
   }
 
+  function renderMetadata(report) {
+    const esc = (v) => String(v)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    const formatDuration = (value) => {
+      if (!value) return "—";
+      if (typeof value !== "string") return String(value);
+
+      const simple = value.match(/^(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/);
+      if (simple) {
+        return `${simple[1]}:${simple[2]}:${simple[3]}`;
+      }
+
+      const iso = value.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/);
+      if (!iso) return value;
+
+      const h = Number(iso[1] || 0);
+      const m = Number(iso[2] || 0);
+      const s = Number(iso[3] || 0);
+      const totalSeconds = Math.floor(h * 3600 + m * 60 + s);
+      const hh = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+      const mm = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+      const ss = String(totalSeconds % 60).padStart(2, "0");
+      return `${hh}:${mm}:${ss}`;
+    };
+    const formatVideoPath = (value) => {
+      if (!value) return "—";
+      const text = String(value);
+      return text.replace(/^file:\/\/\/+/i, "");
+    };
+
+    const formatBitrateMbps = (bitRate) => {
+      if (bitRate == null || bitRate === "") return "—";
+      const n = Number(bitRate);
+      if (!Number.isFinite(n)) return "—";
+      const mbps = (n / 1_000_000).toFixed(2).replace(/\.?0+$/, "");
+      return `${mbps} Mb/s`;
+    };
+    const vm = (report && report.videoMetadata) || {};
+    const rows = [
+      ["Video path", formatVideoPath(report && report.videoPath ? report.videoPath : "—")],
+      ["Resolution", (vm.width && vm.height) ? (vm.width + " x " + vm.height) : "—"],
+      ["Codec", vm.codec || "—"],
+      ["Pixel format", vm.pixelFormat || vm.pixFmt || "—"],
+      ["Color range", vm.colorRange || "—"],
+      ["Field order", vm.fieldOrder || "—"],
+      ["FPS", vm.fps != null ? vm.fps : "—"],
+      ["Duration", formatDuration(vm.duration)],
+      ["Bitrate", formatBitrateMbps(vm.bitRate)]
+    ];
+
+    const meta = document.getElementById("meta");
+    meta.classList.add("meta-list");
+    meta.innerHTML = rows.map(([label, value]) =>
+      "<div class=\"meta-row\"><span class=\"meta-label\">" + esc(label) + "</span><span class=\"meta-value\">" + esc(value) + "</span></div>"
+    ).join("");
+  }
+
   function getChartViewportWidth(chartScroll) {
     return Math.max(1, chartScroll.clientWidth);
   }
@@ -94,40 +154,56 @@
       return;
     }
     const baseWidth = getChartViewportWidth(chartScroll);
-    const zoomedWidth = Math.max(1, Math.round(baseWidth * xZoomScale));
+    const zoomedWidth = Math.max(1, baseWidth * xZoomScale);
     chartInner.style.width = zoomedWidth + "px";
     if (chart) {
       chart.resize();
     }
   }
-
-  function onChartWheel(event) {
-    const chartScroll = event.currentTarget;
+  function flushChartZoom() {
+    pendingZoomFrame = null;
+    const payload = pendingWheelPayload;
+    pendingWheelPayload = null;
+    if (!payload) {
+      return;
+    }
+    const { chartScroll, deltaY, clientX } = payload;
     const chartInner = document.getElementById("lumaChartInner");
     if (!chartScroll || !chartInner) {
       return;
     }
-    event.preventDefault();
 
     const previousScale = xZoomScale;
-    const zoomFactor = Math.exp(-event.deltaY * WHEEL_ZOOM_SENSITIVITY);
+    const zoomFactor = Math.exp(-deltaY * WHEEL_ZOOM_SENSITIVITY);
     const nextScale = Math.max(MIN_X_ZOOM_SCALE, Math.min(MAX_X_ZOOM_SCALE, previousScale * zoomFactor));
     if (Math.abs(nextScale - previousScale) < 0.0001) {
       return;
     }
 
     const rect = chartScroll.getBoundingClientRect();
-    const mouseX = event.clientX - rect.left;
-    const previousContentWidth = Math.max(1, chartInner.getBoundingClientRect().width);
+    const mouseX = clientX - rect.left;
+    const previousContentWidth = Math.max(1, chartInner.scrollWidth);
     const anchorRatio = (chartScroll.scrollLeft + mouseX) / previousContentWidth;
 
     xZoomScale = nextScale;
     applyHorizontalZoom();
-
-    const nextContentWidth = Math.max(1, chartInner.getBoundingClientRect().width);
+    const nextContentWidth = Math.max(1, chartInner.scrollWidth);
     const nextAnchorX = anchorRatio * nextContentWidth;
     const maxScrollLeft = Math.max(0, nextContentWidth - getChartViewportWidth(chartScroll));
     chartScroll.scrollLeft = Math.min(maxScrollLeft, Math.max(0, nextAnchorX - mouseX));
+  }
+
+  function onChartWheel(event) {
+    event.preventDefault();
+    pendingWheelPayload = {
+      chartScroll: event.currentTarget,
+      deltaY: event.deltaY,
+      clientX: event.clientX
+    };
+    if (pendingZoomFrame !== null) {
+      return;
+    }
+    pendingZoomFrame = requestAnimationFrame(flushChartZoom);
   }
 
   function setupChartZoom() {
@@ -157,6 +233,11 @@
     const frames = report.frameStatsList || [];
     const labels = frames.map((_, i) => i);
     const chartScroll = document.getElementById("lumaChartScroll");
+    const rawBitDepth = Number(report && report.videoMetadata ? report.videoMetadata.bitDepth : NaN);
+    const bitDepth = Number.isFinite(rawBitDepth) ? Math.floor(rawBitDepth) : null;
+    const yAxisMax = bitDepth && bitDepth > 0 && bitDepth <= 30
+      ? (Math.pow(2, bitDepth) - 1)
+      : 255;
 
     xZoomScale = 1;
     applyHorizontalZoom();
@@ -201,7 +282,7 @@
           },
           scales: {
             x: { title: { display: true, text: "Frame" } },
-            y: { title: { display: true, text: "Luma" }, min: 0, max: 255 }
+            y: { title: { display: true, text: "Luma" }, min: 0, max: yAxisMax }
           }
         }
       });
@@ -220,7 +301,7 @@
     meta.textContent = "Loading...";
     try {
       const report = await fetchLatestReport();
-      meta.textContent = JSON.stringify(report.videoMetadata, null, 2);
+      renderMetadata(report);
       const videoPathInput = document.getElementById("videoPath");
       if (videoPathInput && report.videoPath) {
         videoPathInput.value = report.videoPath;
