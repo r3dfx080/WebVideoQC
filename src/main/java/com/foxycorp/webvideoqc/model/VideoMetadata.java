@@ -10,6 +10,7 @@ public record VideoMetadata(
         String codec,
         String pixelFormat,
         String colorRange,
+        String fieldOrder,
         double fps,
         Duration duration,
         long bitRate

@@ -43,7 +43,7 @@ public class VideoAnalysisController {
 
     @GetMapping("/reports/latest")
     public ResponseEntity<VideoStats> latestReport() {
-        Path reportPath = Path.of(System.getProperty("user.dir"), "test.video-stats.json");
+        Path reportPath = Path.of(System.getProperty("user.dir"), "latest.video-stats.json");
 
         if (!reportPath.toFile().exists()) {
             return ResponseEntity.notFound().build();
@@ -55,7 +55,7 @@ public class VideoAnalysisController {
 
     @GetMapping(value = "/frame-preview", produces = MediaType.IMAGE_JPEG_VALUE)
     public ResponseEntity<byte[]> framePreview(
-            @RequestParam("path") String path,
+            @RequestParam(value = "path", required = false) String path,
             @RequestParam("frame") int frame,
             @RequestParam(value = "overlay", defaultValue = "false") boolean overlay
     ) {

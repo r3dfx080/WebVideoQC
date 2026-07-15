@@ -53,7 +53,7 @@
       <input id="overlayToggle" type="checkbox" checked> Overlay signalstats
     </label>
     <div id="previewInfo">Click a chart point to preview a frame.</div>
-    <img id="previewImage" alt="frame preview">
+    <img id="previewImage">
   </section>
 </div>
 <script>
@@ -171,8 +171,8 @@
       datasets: [
         { label: "YAVG", data: frames.map(f => f.yavg), borderWidth: 1, pointRadius: 0 },
         { label: "YMAX", data: frames.map(f => f.ymax), borderWidth: 1, pointRadius: 0 },
-        { label: "YHIGH", data: frames.map(f => f.yhigh), borderWidth: 1, pointRadius: 0 },
-        { label: "YLOW", data: frames.map(f => f.ylow), borderWidth: 1, pointRadius: 0 }
+        { label: "YMIN", data: frames.map(f => f.ymin), borderWidth: 1, pointRadius: 0 },
+        { label: "YHIGH", data: frames.map(f => f.yhigh), borderWidth: 1, pointRadius: 0 }
       ]
     };
 
@@ -221,6 +221,10 @@
     try {
       const report = await fetchLatestReport();
       meta.textContent = JSON.stringify(report.videoMetadata, null, 2);
+      const videoPathInput = document.getElementById("videoPath");
+      if (videoPathInput && report.videoPath) {
+        videoPathInput.value = report.videoPath;
+      }
       drawChart(report);
     } catch (e) {
       meta.textContent = "Failed to load report: " + e.message;
@@ -234,16 +238,14 @@
     const info = document.getElementById("previewInfo");
     const image = document.getElementById("previewImage");
 
-    if (!videoPath) {
-      info.textContent = "Set temporary video path in the Work dir files block first.";
-      return;
-    }
 
     info.textContent = "Loading frame " + frame + "...";
     try {
-      const url = "/api/videos/frame-preview?path=" + encodeURIComponent(videoPath)
-          + "&frame=" + encodeURIComponent(frame)
+      let url = "/api/videos/frame-preview?frame=" + encodeURIComponent(frame)
           + "&overlay=" + encodeURIComponent(overlay);
+      if (videoPath) {
+        url += "&path=" + encodeURIComponent(videoPath);
+      }
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error("HTTP " + response.status);

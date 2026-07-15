@@ -108,7 +108,7 @@ public class FFClient {
 
         command.add("-show_frames");
         command.add("-show_entries");
-        command.add("frame=pts_time:frame_tags=lavfi.signalstats.YLOW,lavfi.signalstats.YHIGH,lavfi.signalstats.YMAX,lavfi.signalstats.YAVG");
+        command.add("frame=pts_time:frame_tags=lavfi.signalstats.YLOW,lavfi.signalstats.YMIN,lavfi.signalstats.YHIGH,lavfi.signalstats.YMAX,lavfi.signalstats.YAVG");
         command.add("-of");
         command.add("json=compact=1");
 
@@ -137,11 +137,11 @@ public class FFClient {
         } catch (IOException e) {
             throw new FFprobeException("Unable to execute ffprobe", e);
         } finally {
-//            try {
-//                Files.deleteIfExists(statsFile);
-//            } catch (IOException e) {
-//                throw new FFprobeException("Unable to delete temporary stats file", e);
-//            }
+            try {
+                Files.deleteIfExists(statsFile);
+            } catch (IOException e) {
+                throw new FFprobeException("Unable to delete temporary stats file", e);
+            }
         }
     }
 
@@ -194,6 +194,7 @@ public class FFClient {
 
     /**
      * Saves VideoStats object into a compressed json
+     *
      * @param videoStats VideoStats object
      */
     public Path saveVideoStats(VideoStats videoStats) {
@@ -201,8 +202,8 @@ public class FFClient {
             throw new IllegalArgumentException("videoStats must not be null");
         }
         // TODO: make a proper path resolver
-        Path gzipOutput = Path.of(workDir + "\\test.video-stats.json.gz");
-        Path jsonOutput = Path.of(workDir + "\\test.video-stats.json");
+        Path gzipOutput = Path.of(workDir + "\\latest.video-stats.json.gz");
+        Path jsonOutput = Path.of(workDir + "\\latest.video-stats.json");
         objectMapper.writeValue(jsonOutput.toFile(), videoStats);
 
         try (OutputStream out = Files.newOutputStream(gzipOutput);
@@ -218,7 +219,9 @@ public class FFClient {
         validateInput(videoFile);
 
         String selectFilter = "select='eq(n\\," + frameNumber + ")'";
-        String filter = overlay ? selectFilter + ",signalstats=out=brng:color=red" : selectFilter;
+        String filter = overlay
+                ? selectFilter + ",signalstats=out=brng:color=red,format=yuv420p"
+                : selectFilter + ",format=yuv420p";
 
         List<String> command = new ArrayList<>();
         command.add(ffmpegBinary);
@@ -234,6 +237,8 @@ public class FFClient {
         command.add("image2pipe");
         command.add("-vcodec");
         command.add("mjpeg");
+        command.add("-pix_fmt");
+        command.add("yuvj420p");
         command.add("-");
 
         ProcessBuilder pb = new ProcessBuilder(command);
@@ -265,6 +270,11 @@ public class FFClient {
             throw new FFmpegException("Unable to execute ffmpeg for frame preview", e);
         }
     }
+
+
+    /**
+     * Validate that video file exist and is a regular file
+     */
     private void validateInput(Path videoFile) {
         if (videoFile == null) {
             throw new IllegalArgumentException("videoFile must not be null");
@@ -288,10 +298,11 @@ public class FFClient {
             if (tags.isMissingNode() || tags.isNull()) continue;
 
             VideoStats.FrameStats fs = new VideoStats.FrameStats();
-            fs.setYlow(parseInt(tags, "lavfi.signalstats.YLOW"));
-            fs.setYhigh(parseInt(tags, "lavfi.signalstats.YHIGH"));
-            fs.setYmax(parseInt(tags, "lavfi.signalstats.YMAX"));
-            fs.setYavg(parseFloat(tags, "lavfi.signalstats.YAVG"));
+            fs.setYlow(Integer.parseInt(tags.path("lavfi.signalstats.YLOW").asString()));
+            fs.setYmin(Integer.parseInt(tags.path("lavfi.signalstats.YMIN").asString()));
+            fs.setYhigh(Integer.parseInt(tags.path("lavfi.signalstats.YHIGH").asString()));
+            fs.setYmax(Integer.parseInt(tags.path("lavfi.signalstats.YMAX").asString()));
+            fs.setYavg(Float.parseFloat(tags.path("lavfi.signalstats.YAVG").asString()));
 
             frames.add(fs);
         }
@@ -299,17 +310,17 @@ public class FFClient {
         return new VideoStats(path, frames, metadata);
     }
 
-    private int parseInt(JsonNode tags, String key) {
-        String v = tags.path(key).asString(null);
-        if (v == null || v.isBlank()) return 0;
-        return (int) Double.parseDouble(v);
-    }
-
-    private float parseFloat(JsonNode tags, String key) {
-        String v = tags.path(key).asString(null);
-        if (v == null || v.isBlank()) return 0f;
-        return Float.parseFloat(v);
-    }
+//    private int parseInt(JsonNode tags, String key) {
+//        String v = tags.path(key).asString(null);
+//        if (v == null || v.isBlank()) return 0;
+//        return (int) Double.parseDouble(v);
+//    }
+//
+//    private float parseFloat(JsonNode tags, String key) {
+//        String v = tags.path(key).asString(null);
+//        if (v == null || v.isBlank()) return 0f;
+//        return Float.parseFloat(v);
+//    }
 
     private VideoMetadata mapToMetadata(JsonNode root) {
         JsonNode format = root.path("format");
@@ -329,12 +340,11 @@ public class FFClient {
 
         double durationSec = format.path("duration").asDouble(0.0);
         long bitRate = format.path("bit_rate").asLong(0L);
-
         int width = videoStream.path("width").asInt(0);
         int height = videoStream.path("height").asInt(0);
         String codec = videoStream.path("codec_name").asString("unknown");
         String pixFmt = videoStream.path("pix_fmt").asString("unknown");
-
+        String fieldOrder = videoStream.path("field_order").asString("unknown");
         String colorRange = videoStream.path("color_range").asString("unknown");
         String avgFrameRate = videoStream.path("avg_frame_rate").asString("0/0");
         double fps = parseFps(avgFrameRate);
@@ -344,6 +354,7 @@ public class FFClient {
                 height,
                 codec,
                 pixFmt,
+                fieldOrder,
                 colorRange,
                 fps,
                 Duration.ofMillis((long) (durationSec * 1000)),

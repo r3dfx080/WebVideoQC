@@ -21,6 +21,7 @@ public class VideoStats {
     @Data
     public static class FrameStats {
         private int ylow;
+        private int ymin;
         private int yhigh;
         private int ymax;
         private float yavg;
@@ -32,6 +33,10 @@ public class VideoStats {
 
     public boolean isPAL() {
         return videoMetadata.height() == 576;
+    }
+
+    public boolean isInterlaced() {
+        return !videoMetadata.fieldOrder().equals("progressive");
     }
 
 }
