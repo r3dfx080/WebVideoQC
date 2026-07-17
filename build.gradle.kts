@@ -1,3 +1,5 @@
+import org.springframework.boot.gradle.tasks.bundling.BootJar
+
 plugins {
     java
     id("org.springframework.boot") version "4.1.0"
@@ -5,7 +7,7 @@ plugins {
 }
 
 group = "com.foxycorp"
-version = "0.2"
+version = "0.3"
 description = "WebVideoQC"
 
 java {
@@ -23,7 +25,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     compileOnly("org.projectlombok:lombok")
-        //developmentOnly("org.springframework.boot:spring-boot-devtools")
+    //developmentOnly("org.springframework.boot:spring-boot-devtools")
     //developmentOnly("org.springframework.boot:spring-boot-docker-compose")
     annotationProcessor("org.projectlombok:lombok")
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
@@ -36,3 +38,22 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+tasks.register<Copy>("copyApplicationProperties") {
+    from("src/main/resources/application.properties")
+    into(layout.buildDirectory.dir("libs"))
+}
+tasks.register<Copy>("copyWindowsStartScript") {
+    from("src/main/resources/start.bat")
+    into(layout.buildDirectory.dir("libs"))
+}
+
+// use constant filename for start script
+tasks.named<BootJar>("bootJar") {
+    archiveFileName.set("WebVideoQC.jar")
+}
+
+tasks.named("bootJar") {
+    finalizedBy("copyApplicationProperties", "copyWindowsStartScript")
+}
+
