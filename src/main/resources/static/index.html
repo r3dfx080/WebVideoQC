@@ -66,9 +66,12 @@
   let xZoomScale = 1;
   let pendingZoomFrame = null;
   let pendingWheelPayload = null;
+  let zoomResizeDebounceTimer = null;
   const MIN_X_ZOOM_SCALE = 1;
   const MAX_X_ZOOM_SCALE = 20;
-  const WHEEL_ZOOM_SENSITIVITY = 0.0015;
+  const WHEEL_ZOOM_IN_FACTOR = 1.08;
+  const WHEEL_ZOOM_OUT_FACTOR = 0.92;
+  const ZOOM_RESIZE_DEBOUNCE_MS = 140;
   const WORKDIR_SCROLL_THRESHOLD = 12;
   function escapeHtml(value) {
     return String(value)
@@ -358,9 +361,18 @@
     const baseWidth = getChartViewportWidth(chartScroll);
     const zoomedWidth = Math.max(1, baseWidth * xZoomScale);
     chartInner.style.width = zoomedWidth + "px";
-    if (chart) {
-      chart.resize();
+  }
+
+  function scheduleChartResizeAfterZoom() {
+    if (zoomResizeDebounceTimer !== null) {
+      clearTimeout(zoomResizeDebounceTimer);
     }
+    zoomResizeDebounceTimer = setTimeout(() => {
+      zoomResizeDebounceTimer = null;
+      if (chart) {
+        chart.resize();
+      }
+    }, ZOOM_RESIZE_DEBOUNCE_MS);
   }
   function flushChartZoom() {
     pendingZoomFrame = null;
@@ -369,38 +381,36 @@
     if (!payload) {
       return;
     }
-    const { chartScroll, deltaY, clientX } = payload;
+    const { chartScroll, deltaY } = payload;
     const chartInner = document.getElementById("lumaChartInner");
     if (!chartScroll || !chartInner) {
       return;
     }
 
     const previousScale = xZoomScale;
-    const zoomFactor = Math.exp(-deltaY * WHEEL_ZOOM_SENSITIVITY);
+    const zoomFactor = deltaY < 0 ? WHEEL_ZOOM_IN_FACTOR : WHEEL_ZOOM_OUT_FACTOR;
     const nextScale = Math.max(MIN_X_ZOOM_SCALE, Math.min(MAX_X_ZOOM_SCALE, previousScale * zoomFactor));
     if (Math.abs(nextScale - previousScale) < 0.0001) {
       return;
     }
-
-    const rect = chartScroll.getBoundingClientRect();
-    const mouseX = clientX - rect.left;
+    const previousViewportWidth = getChartViewportWidth(chartScroll);
     const previousContentWidth = Math.max(1, chartInner.scrollWidth);
-    const anchorRatio = (chartScroll.scrollLeft + mouseX) / previousContentWidth;
+    const centerRatio = (chartScroll.scrollLeft + (previousViewportWidth / 2)) / previousContentWidth;
 
     xZoomScale = nextScale;
     applyHorizontalZoom();
+    scheduleChartResizeAfterZoom();
     const nextContentWidth = Math.max(1, chartInner.scrollWidth);
-    const nextAnchorX = anchorRatio * nextContentWidth;
+    const nextAnchorX = centerRatio * nextContentWidth;
     const maxScrollLeft = Math.max(0, nextContentWidth - getChartViewportWidth(chartScroll));
-    chartScroll.scrollLeft = Math.min(maxScrollLeft, Math.max(0, nextAnchorX - mouseX));
+    chartScroll.scrollLeft = Math.min(maxScrollLeft, Math.max(0, nextAnchorX - (previousViewportWidth / 2)));
   }
 
   function onChartWheel(event) {
     event.preventDefault();
     pendingWheelPayload = {
       chartScroll: event.currentTarget,
-      deltaY: event.deltaY,
-      clientX: event.clientX
+      deltaY: event.deltaY
     };
     if (pendingZoomFrame !== null) {
       return;
@@ -498,8 +508,21 @@
             loadFramePreview(frame);
           },
           scales: {
-            x: { title: { display: true, text: "Frame" } },
+            x: {
+              title: { display: true, text: "Frame" },
+              ticks: {
+                maxTicksLimit: 16,
+                autoSkip: true
+              }
+            },
             y: { title: { display: true, text: "Luma" }, min: 0, max: yAxisMax }
+          },
+          plugins: {
+            decimation: {
+              enabled: true,
+              algorithm: "lttb",
+              samples: 1000
+            }
           }
         }
       });

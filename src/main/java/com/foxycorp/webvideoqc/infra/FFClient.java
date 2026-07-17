@@ -222,9 +222,11 @@ public class FFClient {
         String filter = overlay
                 ? selectFilter + ",signalstats=out=brng:color=red,format=yuv420p"
                 : selectFilter + ",format=yuv420p";
+        Path previewOutput = Path.of(workDir, "temp-preview.jpg");
 
         List<String> command = new ArrayList<>();
         command.add(ffmpegBinary);
+        command.add("-y");
         command.add("-v");
         command.add("error");
         command.add("-i");
@@ -233,32 +235,23 @@ public class FFClient {
         command.add(filter);
         command.add("-frames:v");
         command.add("1");
-        command.add("-f");
-        command.add("image2pipe");
-        command.add("-vcodec");
-        command.add("mjpeg");
         command.add("-pix_fmt");
         command.add("yuvj420p");
-        command.add("-");
+        command.add(previewOutput.toAbsolutePath().toString());
 
         ProcessBuilder pb = new ProcessBuilder(command);
 
         try {
             Process process = pb.start();
-            byte[] imageBytes;
-            try (InputStream stdout = process.getInputStream()) {
-                imageBytes = stdout.readAllBytes();
-            }
-
             String stderr;
             try (InputStream err = process.getErrorStream()) {
                 stderr = new String(err.readAllBytes());
             }
-
             int exit = process.waitFor();
             if (exit != 0) {
                 throw new FFmpegException("ffmpeg preview failed (exit=" + exit + "): " + stderr);
             }
+            byte[] imageBytes = Files.readAllBytes(previewOutput);
             if (imageBytes.length == 0) {
                 throw new FFmpegException("ffmpeg preview returned empty image");
             }
