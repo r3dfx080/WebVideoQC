@@ -77,10 +77,30 @@
       .replace(/>/g, "&gt;");
   }
 
+  async function parseApiError(response) {
+    const fallback = "HTTP " + response.status;
+    const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+    try {
+      if (contentType.includes("application/json")) {
+        const payload = await response.json();
+        if (payload && (payload.code || payload.message)) {
+          const code = payload.code ? String(payload.code) : null;
+          const message = payload.message ? String(payload.message) : fallback;
+          return code ? (code + ": " + message) : message;
+        }
+        return fallback;
+      }
+      const text = (await response.text()).trim();
+      return text || fallback;
+    } catch (_ignored) {
+      return fallback;
+    }
+  }
+
   async function fetchWorkdirFiles() {
     const response = await fetch("/api/videos/workdir-files");
     if (!response.ok) {
-      throw new Error("HTTP " + response.status);
+      throw new Error(await parseApiError(response));
     }
     return await response.json();
   }
@@ -232,7 +252,7 @@
         body: JSON.stringify({ path: selected.path })
       });
       if (!response.ok) {
-        throw new Error("HTTP " + response.status);
+        throw new Error(await parseApiError(response));
       }
       if (status) {
         status.textContent = "Analysis complete";
@@ -258,21 +278,15 @@
   }
 
   async function fetchLatestReport() {
-    const urls = ["/api/videos/reports/latest", "/reports/latest"];
-    let lastError = null;
-    for (const url of urls) {
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          lastError = new Error("HTTP " + response.status + " for " + url);
-          continue;
-        }
-        return await response.json();
-      } catch (e) {
-        lastError = e;
+    const response = await fetch("/api/videos/reports/latest");
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error("No report found");
       }
+      const detail = await parseApiError(response);
+      throw new Error(detail);
     }
-    throw lastError || new Error("Report endpoint not available");
+    return await response.json();
   }
 
   function renderMetadata(report) {
@@ -508,7 +522,11 @@
       renderMetadata(report);
       drawChart(report);
     } catch (e) {
-      meta.textContent = "Failed to load report: " + e.message;
+      if (e && e.message === "No report found") {
+        meta.textContent = "No report found";
+      } else {
+        meta.textContent = "Failed to load report: " + e.message;
+      }
     }
   }
 
@@ -531,7 +549,7 @@
       }
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error("HTTP " + response.status);
+        throw new Error(await parseApiError(response));
       }
       const blob = await response.blob();
       if (previewObjectUrl) {

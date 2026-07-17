@@ -13,7 +13,7 @@ import java.util.List;
 @Getter
 @Setter
 public class VideoStats {
-    // TODO: implement md5(?) for fast checking
+
     private Path videoPath;
     private List<FrameStats> frameStatsList;
     private VideoMetadata videoMetadata;
@@ -39,6 +39,9 @@ public class VideoStats {
         return !videoMetadata.fieldOrder().equals("progressive");
     }
 
+    public String getFilename() {
+        return videoPath.getFileName().toString();
+    }
 }
 
 

@@ -1,10 +1,10 @@
 package com.foxycorp.webvideoqc.controller;
+
 import com.foxycorp.webvideoqc.infra.FFmpegException;
 import com.foxycorp.webvideoqc.infra.FFprobeException;
 import com.foxycorp.webvideoqc.model.ErrorResponse;
 import com.foxycorp.webvideoqc.service.VideoFileNotFoundException;
 import org.springframework.http.HttpStatus;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
