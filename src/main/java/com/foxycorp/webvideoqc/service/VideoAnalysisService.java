@@ -3,6 +3,7 @@ package com.foxycorp.webvideoqc.service;
 import com.foxycorp.webvideoqc.infra.FFClient;
 import com.foxycorp.webvideoqc.model.VideoMetadata;
 import com.foxycorp.webvideoqc.model.VideoStats;
+import com.foxycorp.webvideoqc.model.WorkdirFileEntry;
 import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -68,7 +69,7 @@ public class VideoAnalysisService {
         return ffClient.renderFrame(resolvePreviewPath(rawPath), frame, overlay);
     }
 
-    public List<String> listUserWorkdirFiles() {
+    public List<WorkdirFileEntry> listUserWorkdirFiles() {
         final Path workdirPath;
         try {
             workdirPath = Path.of(userWorkdir).normalize();
@@ -87,7 +88,10 @@ public class VideoAnalysisService {
             return paths
                     .filter(Files::isRegularFile)
                     .sorted(Comparator.comparingLong(VideoAnalysisService::safeLastModifiedMillis).reversed())
-                    .map(path -> path.getFileName().toString())
+                    .map(path -> new WorkdirFileEntry(
+                            path.getFileName().toString(),
+                            path.toAbsolutePath().toString()
+                    ))
                     .toList();
         } catch (IOException e) {
             throw new IllegalArgumentException("Unable to read configured user workdir: " + workdirPath);

@@ -20,10 +20,9 @@
 
   <section class="panel panel-actions">
     <h2 class="panel-title">Analyze / Load</h2>
-    <div class="placeholder-stack">
-      <div class="placeholder-chip">Analyze</div>
-      <div class="placeholder-chip">Load</div>
-    </div>
+    <button id="analyzeButton" class="action-button" type="button" disabled>Analyze selected file</button>
+    <div id="analyzeSelectionHint" class="placeholder">Select a file in Workdir files</div>
+    <div id="analyzeStatus" class="placeholder"></div>
   </section>
 
   <section class="panel panel-reports">
@@ -63,6 +62,7 @@
   let currentPreviewFrame = null;
   let latestReport = null;
   let allWorkdirFiles = [];
+  let selectedWorkdirPath = null;
   let xZoomScale = 1;
   let pendingZoomFrame = null;
   let pendingWheelPayload = null;
@@ -90,7 +90,9 @@
     if (!query) {
       return allWorkdirFiles;
     }
-    return allWorkdirFiles.filter((name) => String(name).toLowerCase().includes(query));
+    return allWorkdirFiles.filter((entry) =>
+      String(entry && entry.name ? entry.name : "").toLowerCase().includes(query)
+    );
   }
 
   function renderWorkdirFiles(files) {
@@ -114,9 +116,38 @@
 
     container.classList.add("workdir-file-list");
     container.classList.toggle("workdir-file-list--scrollable", files.length > WORKDIR_SCROLL_THRESHOLD);
-    container.innerHTML = files
-      .map((name) => "<div class=\"workdir-file-item\">" + escapeHtml(name) + "</div>")
-      .join("");
+    container.innerHTML = "";
+    for (const entry of files) {
+      const item = document.createElement("div");
+      item.className = "workdir-file-item";
+      if (entry && entry.path === selectedWorkdirPath) {
+        item.classList.add("workdir-file-item--selected");
+      }
+      item.dataset.path = entry && entry.path ? entry.path : "";
+      item.textContent = entry && entry.name ? entry.name : "";
+      container.appendChild(item);
+    }
+  }
+
+  function getSelectedWorkdirFile() {
+    if (!selectedWorkdirPath) {
+      return null;
+    }
+    return allWorkdirFiles.find((entry) => entry && entry.path === selectedWorkdirPath) || null;
+  }
+
+  function updateAnalyzeSelectionUI() {
+    const analyzeButton = document.getElementById("analyzeButton");
+    const hint = document.getElementById("analyzeSelectionHint");
+    const selected = getSelectedWorkdirFile();
+    if (analyzeButton) {
+      analyzeButton.disabled = !selected;
+    }
+    if (hint) {
+      hint.textContent = selected
+        ? ("Selected: " + selected.name)
+        : "Select a file in Workdir files";
+    }
   }
 
   async function loadWorkdirFiles() {
@@ -130,10 +161,16 @@
     try {
       const files = await fetchWorkdirFiles();
       allWorkdirFiles = Array.isArray(files) ? files : [];
+      if (!allWorkdirFiles.some((entry) => entry && entry.path === selectedWorkdirPath)) {
+        selectedWorkdirPath = null;
+      }
       renderWorkdirFiles(getFilteredWorkdirFiles());
+      updateAnalyzeSelectionUI();
     } catch (e) {
       allWorkdirFiles = [];
+      selectedWorkdirPath = null;
       container.textContent = "Failed to load files: " + e.message;
+      updateAnalyzeSelectionUI();
     }
   }
 
@@ -146,6 +183,78 @@
       renderWorkdirFiles(getFilteredWorkdirFiles());
     });
     searchInput.dataset.searchInitialized = "true";
+  }
+
+  function setupWorkdirPicker() {
+    const container = document.getElementById("workdirFiles");
+    if (!container || container.dataset.pickerInitialized === "true") {
+      return;
+    }
+    container.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      const item = target.closest(".workdir-file-item");
+      if (!item) {
+        return;
+      }
+      const nextPath = item.dataset.path || null;
+      selectedWorkdirPath = nextPath;
+      renderWorkdirFiles(getFilteredWorkdirFiles());
+      updateAnalyzeSelectionUI();
+    });
+    container.dataset.pickerInitialized = "true";
+  }
+
+  async function analyzeSelectedWorkdirFile() {
+    const selected = getSelectedWorkdirFile();
+    const status = document.getElementById("analyzeStatus");
+    const button = document.getElementById("analyzeButton");
+    if (!selected) {
+      if (status) {
+        status.textContent = "Select a file first";
+      }
+      return;
+    }
+
+    if (button) {
+      button.disabled = true;
+    }
+    if (status) {
+      status.textContent = "Analyzing " + selected.name + "...";
+    }
+
+    try {
+      const response = await fetch("/api/videos/analyze-by-path", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: selected.path })
+      });
+      if (!response.ok) {
+        throw new Error("HTTP " + response.status);
+      }
+      if (status) {
+        status.textContent = "Analysis complete";
+      }
+      await loadWorkdirFiles();
+      await loadReport();
+    } catch (e) {
+      if (status) {
+        status.textContent = "Analyze failed: " + e.message;
+      }
+    } finally {
+      updateAnalyzeSelectionUI();
+    }
+  }
+
+  function setupAnalyzeButton() {
+    const button = document.getElementById("analyzeButton");
+    if (!button || button.dataset.analyzeInitialized === "true") {
+      return;
+    }
+    button.addEventListener("click", analyzeSelectedWorkdirFile);
+    button.dataset.analyzeInitialized = "true";
   }
 
   async function fetchLatestReport() {
@@ -218,7 +327,7 @@
     const meta = document.getElementById("meta");
     meta.classList.add("meta-list");
     meta.innerHTML = rows.map(([label, value]) =>
-      "<div class=\\\"meta-row\\\"><span class=\\\"meta-label\\\">" + escapeHtml(label) + "</span><span class=\\\"meta-value\\\">" + escapeHtml(value) + "</span></div>"
+      '<div class="meta-row"><span class="meta-label">' + escapeHtml(label) + '</span><span class="meta-value">' + escapeHtml(value) + "</span></div>"
     ).join("");
   }
 
@@ -439,6 +548,8 @@
   setupChartZoom();
   setupOverlayToggleRerender();
   setupWorkdirSearch();
+  setupWorkdirPicker();
+  setupAnalyzeButton();
   window.addEventListener("resize", applyHorizontalZoom);
   loadWorkdirFiles();
   loadReport();

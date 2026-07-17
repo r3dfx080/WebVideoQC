@@ -3,6 +3,7 @@ package com.foxycorp.webvideoqc.controller;
 import com.foxycorp.webvideoqc.model.AnalyzeRequest;
 import com.foxycorp.webvideoqc.model.VideoMetadata;
 import com.foxycorp.webvideoqc.model.VideoStats;
+import com.foxycorp.webvideoqc.model.WorkdirFileEntry;
 import com.foxycorp.webvideoqc.service.VideoAnalysisService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
@@ -65,7 +66,7 @@ public class VideoAnalysisController {
     }
 
     @GetMapping("/workdir-files")
-    public ResponseEntity<List<String>> workdirFiles() {
+    public ResponseEntity<List<WorkdirFileEntry>> workdirFiles() {
         return ResponseEntity.ok(videoAnalysisService.listUserWorkdirFiles());
     }
 }
