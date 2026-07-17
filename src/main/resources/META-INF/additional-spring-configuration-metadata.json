@@ -14,5 +14,10 @@
       "name": "webvideoqc.ffprobe.timeout-seconds",
       "type": "java.lang.String",
       "description": "ffprobe process timeout in seconds"
+    },
+    {
+      "name": "webvideoqc.user.workdir",
+      "type": "java.lang.String",
+      "description": "User's work dir"
     }
   ] }

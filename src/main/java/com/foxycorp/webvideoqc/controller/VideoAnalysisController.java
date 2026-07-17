@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.file.Path;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/videos")
@@ -61,5 +62,10 @@ public class VideoAnalysisController {
     ) {
         byte[] image = videoAnalysisService.getFramePreview(path, frame, overlay);
         return ResponseEntity.ok(image);
+    }
+
+    @GetMapping("/workdir-files")
+    public ResponseEntity<List<String>> workdirFiles() {
+        return ResponseEntity.ok(videoAnalysisService.listUserWorkdirFiles());
     }
 }

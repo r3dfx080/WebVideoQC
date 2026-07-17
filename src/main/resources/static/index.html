@@ -12,7 +12,10 @@
 <div class="layout-grid">
   <section class="panel panel-workdir">
     <h2 class="panel-title">Workdir files</h2>
-    <div class="placeholder"></div>
+    <label class="workdir-search-wrap" for="workdirSearch">
+      <input id="workdirSearch" type="search" placeholder="Search files...">
+    </label>
+    <div id="workdirFiles" class="placeholder">Loading...</div>
   </section>
 
   <section class="panel panel-actions">
@@ -59,12 +62,91 @@
   let previewObjectUrl;
   let currentPreviewFrame = null;
   let latestReport = null;
+  let allWorkdirFiles = [];
   let xZoomScale = 1;
   let pendingZoomFrame = null;
   let pendingWheelPayload = null;
   const MIN_X_ZOOM_SCALE = 1;
   const MAX_X_ZOOM_SCALE = 20;
   const WHEEL_ZOOM_SENSITIVITY = 0.0015;
+  const WORKDIR_SCROLL_THRESHOLD = 12;
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  async function fetchWorkdirFiles() {
+    const response = await fetch("/api/videos/workdir-files");
+    if (!response.ok) {
+      throw new Error("HTTP " + response.status);
+    }
+    return await response.json();
+  }
+  function getFilteredWorkdirFiles() {
+    const searchInput = document.getElementById("workdirSearch");
+    const query = searchInput ? searchInput.value.trim().toLowerCase() : "";
+    if (!query) {
+      return allWorkdirFiles;
+    }
+    return allWorkdirFiles.filter((name) => String(name).toLowerCase().includes(query));
+  }
+
+  function renderWorkdirFiles(files) {
+    const container = document.getElementById("workdirFiles");
+    if (!container) {
+      return;
+    }
+    if (!Array.isArray(allWorkdirFiles) || allWorkdirFiles.length === 0) {
+      container.classList.remove("workdir-file-list");
+      container.classList.remove("workdir-file-list--scrollable");
+      container.textContent = "No files in configured user workdir";
+      return;
+    }
+
+    if (!Array.isArray(files) || files.length === 0) {
+      container.classList.remove("workdir-file-list");
+      container.classList.remove("workdir-file-list--scrollable");
+      container.textContent = "No files match your search";
+      return;
+    }
+
+    container.classList.add("workdir-file-list");
+    container.classList.toggle("workdir-file-list--scrollable", files.length > WORKDIR_SCROLL_THRESHOLD);
+    container.innerHTML = files
+      .map((name) => "<div class=\"workdir-file-item\">" + escapeHtml(name) + "</div>")
+      .join("");
+  }
+
+  async function loadWorkdirFiles() {
+    const container = document.getElementById("workdirFiles");
+    if (!container) {
+      return;
+    }
+    container.classList.remove("workdir-file-list");
+    container.classList.remove("workdir-file-list--scrollable");
+    container.textContent = "Loading...";
+    try {
+      const files = await fetchWorkdirFiles();
+      allWorkdirFiles = Array.isArray(files) ? files : [];
+      renderWorkdirFiles(getFilteredWorkdirFiles());
+    } catch (e) {
+      allWorkdirFiles = [];
+      container.textContent = "Failed to load files: " + e.message;
+    }
+  }
+
+  function setupWorkdirSearch() {
+    const searchInput = document.getElementById("workdirSearch");
+    if (!searchInput || searchInput.dataset.searchInitialized === "true") {
+      return;
+    }
+    searchInput.addEventListener("input", () => {
+      renderWorkdirFiles(getFilteredWorkdirFiles());
+    });
+    searchInput.dataset.searchInitialized = "true";
+  }
 
   async function fetchLatestReport() {
     const urls = ["/api/videos/reports/latest", "/reports/latest"];
@@ -85,10 +167,6 @@
   }
 
   function renderMetadata(report) {
-    const esc = (v) => String(v)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
 
     const formatDuration = (value) => {
       if (!value) return "—";
@@ -140,7 +218,7 @@
     const meta = document.getElementById("meta");
     meta.classList.add("meta-list");
     meta.innerHTML = rows.map(([label, value]) =>
-      "<div class=\"meta-row\"><span class=\"meta-label\">" + esc(label) + "</span><span class=\"meta-value\">" + esc(value) + "</span></div>"
+      "<div class=\\\"meta-row\\\"><span class=\\\"meta-label\\\">" + escapeHtml(label) + "</span><span class=\\\"meta-value\\\">" + escapeHtml(value) + "</span></div>"
     ).join("");
   }
 
@@ -360,7 +438,9 @@
 
   setupChartZoom();
   setupOverlayToggleRerender();
+  setupWorkdirSearch();
   window.addEventListener("resize", applyHorizontalZoom);
+  loadWorkdirFiles();
   loadReport();
 </script>
 </body>

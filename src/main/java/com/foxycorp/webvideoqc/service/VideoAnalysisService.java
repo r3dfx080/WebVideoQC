@@ -4,22 +4,32 @@ import com.foxycorp.webvideoqc.infra.FFClient;
 import com.foxycorp.webvideoqc.model.VideoMetadata;
 import com.foxycorp.webvideoqc.model.VideoStats;
 import org.jspecify.annotations.NonNull;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 import java.net.URI;
+import java.io.IOException;
 
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Comparator;
 
 @Service
 public class VideoAnalysisService {
     private final FFClient ffClient;
     private final ObjectMapper objectMapper;
+    private final String userWorkdir;
 
-    public VideoAnalysisService(FFClient ffClient, ObjectMapper objectMapper) {
+    public VideoAnalysisService(
+            FFClient ffClient,
+            ObjectMapper objectMapper,
+            @Value("${webvideoqc.user.workdir}") String userWorkdir
+    ) {
         this.ffClient = ffClient;
         this.objectMapper = objectMapper;
+        this.userWorkdir = userWorkdir;
     }
 
     private Path resolvePreviewPath(String rawPath) {
@@ -56,6 +66,40 @@ public class VideoAnalysisService {
 
     public byte[] getFramePreview(String rawPath, int frame, boolean overlay) {
         return ffClient.renderFrame(resolvePreviewPath(rawPath), frame, overlay);
+    }
+
+    public List<String> listUserWorkdirFiles() {
+        final Path workdirPath;
+        try {
+            workdirPath = Path.of(userWorkdir).normalize();
+        } catch (InvalidPathException e) {
+            throw new IllegalArgumentException("Configured user workdir path is invalid: " + userWorkdir);
+        }
+
+        if (!Files.exists(workdirPath)) {
+            throw new IllegalArgumentException("Configured user workdir does not exist: " + workdirPath);
+        }
+        if (!Files.isDirectory(workdirPath)) {
+            throw new IllegalArgumentException("Configured user workdir is not a directory: " + workdirPath);
+        }
+
+        try (var paths = Files.list(workdirPath)) {
+            return paths
+                    .filter(Files::isRegularFile)
+                    .sorted(Comparator.comparingLong(VideoAnalysisService::safeLastModifiedMillis).reversed())
+                    .map(path -> path.getFileName().toString())
+                    .toList();
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Unable to read configured user workdir: " + workdirPath);
+        }
+    }
+
+    private static long safeLastModifiedMillis(Path path) {
+        try {
+            return Files.getLastModifiedTime(path).toMillis();
+        } catch (IOException e) {
+            return Long.MIN_VALUE;
+        }
     }
 
     private static @NonNull Path getPath(String rawPath) {

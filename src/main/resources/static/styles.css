@@ -34,6 +34,39 @@ h1 {
   color: #5f6368;
   font-size: 14px;
 }
+.workdir-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.workdir-file-list--scrollable {
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.workdir-file-item {
+  padding: 6px 8px;
+  border: 1px solid #e2e5e9;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 13px;
+  color: #202124;
+  word-break: break-word;
+}
+.workdir-search-wrap {
+  display: block;
+  margin-bottom: 8px;
+}
+#workdirSearch {
+  width: 100%;
+  max-width: 280px;
+  padding: 5px 8px;
+  border: 1px solid #c5cad1;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 12px;
+  box-sizing: border-box;
+}
 .placeholder-stack {
   display: flex;
   flex-direction: column;
