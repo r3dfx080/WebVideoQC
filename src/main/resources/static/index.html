@@ -48,9 +48,9 @@
   <section class="panel panel-preview">
     <h2 class="panel-title">Frame preview</h2>
     <label class="overlay-option">
-      <input id="overlayToggle" type="checkbox" checked> Overlay signalstats
+      <input id="overlayToggle" type="checkbox" checked> Overlay pixels outside of broadcast range
     </label>
-    <div id="previewInfo">Click a chart point to preview a frame.</div>
+    <div id="previewInfo">Click a chart point to preview a frame</div>
     <img id="previewImage">
   </section>
 </div>
@@ -274,11 +274,26 @@
           animation: false,
           responsive: true,
           maintainAspectRatio: false,
-          onClick: (evt, elements) => {
+          interaction: {
+            mode: "nearest",
+            intersect: false,
+            axis: "x"
+          },
+          onClick: (evt, _elements, chartInstance) => {
+            const elements = chartInstance.getElementsAtEventForMode(
+              evt,
+              "nearest",
+              { intersect: false, axis: "x" },
+              false
+            );
             if (!elements || !elements.length) {
               return;
             }
-            const frame = elements[0].index;
+            const first = elements[0];
+            const frame = first.index != null ? first.index : first._index;
+            if (frame == null) {
+              return;
+            }
             loadFramePreview(frame);
           },
           scales: {
@@ -337,7 +352,7 @@
       }
       previewObjectUrl = URL.createObjectURL(blob);
       image.src = previewObjectUrl;
-      info.textContent = "Frame #" + frame;
+      info.textContent = "Frame " + frame;
     } catch (e) {
       info.textContent = "Failed to load frame: " + e.message;
     }
