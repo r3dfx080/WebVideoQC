@@ -39,7 +39,7 @@ public class VideoAnalysisController {
 
     @PostMapping("/analyze-by-path")
     public ResponseEntity analyzeByPath(@Valid @RequestBody AnalyzeRequest request) {
-        videoAnalysisService.analyzeByPath(request.getPath());
+        videoAnalysisService.analyzeByPath(request.getPath(), request.getAnalyzeAudio(), request.getAnalyzeAudioExtended());
         return ResponseEntity.ok().build();
     }
 

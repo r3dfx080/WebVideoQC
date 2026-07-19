@@ -1,5 +1,6 @@
 package com.foxycorp.webvideoqc.infra;
 
+import com.foxycorp.webvideoqc.model.AudioStats;
 import com.foxycorp.webvideoqc.model.VideoMetadata;
 import com.foxycorp.webvideoqc.model.VideoStats;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +16,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.zip.GZIPOutputStream;
 
 @Component
@@ -81,7 +83,7 @@ public class FFClient {
      * @param videoFile absolute path to video file
      * @return VideoStats object for passed video file
      */
-    public VideoStats getVideoStats(Path videoFile) {
+    public VideoStats getVideoStats(Path videoFile, Boolean analyzeAudio, Boolean analyzeAudioExtended) {
         validateInput(videoFile);
         Path statsFile;
         try {
@@ -127,9 +129,16 @@ public class FFClient {
             if (exit != 0) {
                 throw new FFprobeException("ffmpeg failed (exit=" + exit + "): " + stderr);
             }
-            VideoMetadata metadata = getMetadata(videoFile);
+
             JsonNode statsRoot = objectMapper.readTree(statsFile.toFile());
-            return parseStatsFromJson(videoFile, statsRoot, metadata);
+
+            List<VideoStats.FrameStats> frameStatsList = parseStatsFromJson(statsRoot);
+
+            VideoMetadata metadata = getMetadata(videoFile);
+
+            Optional<AudioStats> audioStats = Optional.empty();
+
+            return new VideoStats(videoFile, frameStatsList, metadata, audioStats);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -283,7 +292,7 @@ public class FFClient {
         return dot > 0 ? fileName.substring(0, dot) : fileName;
     }
 
-    private VideoStats parseStatsFromJson(Path path, JsonNode root, VideoMetadata metadata) {
+    private List<VideoStats.FrameStats> parseStatsFromJson(JsonNode root) {
         List<VideoStats.FrameStats> frames = new ArrayList<>();
 
         for (JsonNode frame : root.path("frames")) {
@@ -300,7 +309,7 @@ public class FFClient {
             frames.add(fs);
         }
 
-        return new VideoStats(path, frames, metadata);
+        return frames;
     }
 
 //    private int parseInt(JsonNode tags, String key) {

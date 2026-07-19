@@ -59,9 +59,9 @@ public class VideoAnalysisService {
         return ffClient.getMetadata(getPath(rawPath));
     }
 
-    public Path analyzeByPath(String rawPath){
+    public Path analyzeByPath(String rawPath, Boolean analyzeAudio, Boolean analyzeAudioExtended) {
         var path = getPath(rawPath);
-        var videoStats = ffClient.getVideoStats(path);
+        var videoStats = ffClient.getVideoStats(path, analyzeAudio, analyzeAudioExtended);
         return ffClient.saveVideoStats(videoStats);
     }
 

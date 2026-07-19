@@ -7,6 +7,7 @@ import lombok.Setter;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 
 // video stats from signalstats (ffmpeg) & metadata from ffprobe
 @AllArgsConstructor
@@ -17,6 +18,7 @@ public class VideoStats {
     private Path videoPath;
     private List<FrameStats> frameStatsList;
     private VideoMetadata videoMetadata;
+    private Optional<AudioStats> audioStats;
 
     @Data
     public static class FrameStats {
@@ -41,6 +43,10 @@ public class VideoStats {
 
     public String getFilename() {
         return videoPath.getFileName().toString();
+    }
+
+    public boolean areAudioStatsPresent() {
+        return audioStats.isPresent();
     }
 }
 

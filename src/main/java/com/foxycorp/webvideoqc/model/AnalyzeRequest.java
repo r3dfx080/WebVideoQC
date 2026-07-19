@@ -7,4 +7,6 @@ import lombok.Getter;
 public class AnalyzeRequest {
     @NotBlank
     private String path;
+    private Boolean analyzeAudio;
+    private Boolean analyzeAudioExtended;
 }
