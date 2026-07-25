@@ -21,6 +21,10 @@
   <section class="panel panel-actions">
     <h2 class="panel-title">Analyze / Load</h2>
     <button id="analyzeButton" class="action-button" type="button" disabled>Analyze selected file</button>
+    <div id="analyzeOptions" class="analyze-options">
+      <label class="analyze-option"><input id="analyzeAudioCheckbox" type="checkbox" checked> Analyze audio</label>
+      <label class="analyze-option"><input id="calculateLoudnessCheckbox" type="checkbox"> Calculate loudness</label>
+    </div>
     <div id="analyzeSelectionHint" class="placeholder">Select a file in Workdir files</div>
     <div id="analyzeStatus" class="placeholder"></div>
   </section>
@@ -252,7 +256,11 @@
       const response = await fetch("/api/videos/analyze-by-path", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: selected.path })
+        body: JSON.stringify({
+          path: selected.path,
+          analyzeAudio: !!document.getElementById("analyzeAudioCheckbox").checked,
+          analyzeAudioExtended: !!document.getElementById("calculateLoudnessCheckbox").checked
+        })
       });
       if (!response.ok) {
         throw new Error(await parseApiError(response));
@@ -278,6 +286,26 @@
     }
     button.addEventListener("click", analyzeSelectedWorkdirFile);
     button.dataset.analyzeInitialized = "true";
+
+    // wire checkboxes dependency
+    const analyzeAudioCheckbox = document.getElementById("analyzeAudioCheckbox");
+    const calculateLoudnessCheckbox = document.getElementById("calculateLoudnessCheckbox");
+    if (analyzeAudioCheckbox && calculateLoudnessCheckbox) {
+      // ensure initial state (preserve checked state even when disabled)
+      calculateLoudnessCheckbox.disabled = !analyzeAudioCheckbox.checked;
+      let preservedLoudness = calculateLoudnessCheckbox.checked;
+      analyzeAudioCheckbox.addEventListener("change", () => {
+        calculateLoudnessCheckbox.disabled = !analyzeAudioCheckbox.checked;
+        if (analyzeAudioCheckbox.checked) {
+          calculateLoudnessCheckbox.checked = preservedLoudness;
+        } else {
+          preservedLoudness = calculateLoudnessCheckbox.checked;
+        }
+      });
+      calculateLoudnessCheckbox.addEventListener("change", () => {
+        preservedLoudness = calculateLoudnessCheckbox.checked;
+      });
+    }
   }
 
   async function fetchLatestReport() {

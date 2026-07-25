@@ -17,10 +17,13 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
 
 @Component
 public class FFClient {
+    private static final Pattern NUMERIC_PATTERN = Pattern.compile("[-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?");
     private final ObjectMapper objectMapper;
     private final String ffprobeBinary;
     private final String ffmpegBinary;
@@ -80,16 +83,18 @@ public class FFClient {
     /**
      * Gets VideoStats for a passed video file path.
      * ffprobe's lavfi + signalstats is used, resulting .json is parsed and then deleted
+     *
      * @param videoFile absolute path to video file
      * @return VideoStats object for passed video file
      */
     public VideoStats getVideoStats(Path videoFile, Boolean analyzeAudio, Boolean analyzeAudioExtended) {
         validateInput(videoFile);
+
         Path statsFile;
         try {
             statsFile = Files.createFile(Path.of(workDir + "\\temp-signalstats.json"));
         } catch (IOException e) {
-            throw new FFprobeException("Unable to allocate temp stats file", e);
+            throw new FFprobeException("Unable to allocate temp video stats file", e);
         }
 
         List<String> command = new ArrayList<>();
@@ -137,6 +142,9 @@ public class FFClient {
             VideoMetadata metadata = getMetadata(videoFile);
 
             Optional<AudioStats> audioStats = Optional.empty();
+            if (analyzeAudio) {
+                audioStats = Optional.of(getBasicAudioStats(videoFile));
+            }
 
             return new VideoStats(videoFile, frameStatsList, metadata, audioStats);
 
@@ -154,52 +162,147 @@ public class FFClient {
         }
     }
 
+    public AudioStats getBasicAudioStats(Path videoFile) {
+        Path statsFile;
+        try {
+            statsFile = Files.createFile(Path.of(workDir + "\\temp-basic-audiostats.json"));
+        } catch (IOException e) {
+            throw new FFprobeException("Unable to allocate temp audio stats file", e);
+        }
 
-//    /**
-//     * Returns VideoStats object with embedded metadata & frame-by-frame statistics
-//     * @param statsFile .txt file with frame-by-frame statistics from ffmpeg.exe
-//     * @param metadata video metadata
-//     * @return VideoStats
-//     */
-//    public VideoStats parseStats(Path statsFile, VideoMetadata metadata) throws IOException {
-//        List<VideoStats.FrameStats> frames = new ArrayList<>();
-//        VideoStats.FrameStats current = null;
-//
-//        for (String raw : Files.readAllLines(statsFile)) {
-//            String line = raw.trim();
-//            if (line.isEmpty()) {
-//                continue;
-//            }
-//
-//            if (line.startsWith("frame:")) {
-//                if (current != null) {
-//                    frames.add(current);
-//                }
-//                current = new VideoStats.FrameStats();
-//                continue;
-//            }
-//
-//            if (current == null || line.indexOf('=') < 0) {
-//                continue;
-//            }
-//
-//            double value = Double.parseDouble(line.substring(line.indexOf('=') + 1));
-//            if (line.startsWith("lavfi.signalstats.YLOW=")) {
-//                current.setYlow((int) value);
-//            } else if (line.startsWith("lavfi.signalstats.YHIGH=")) {
-//                current.setYhigh((int) value);
-//            } else if (line.startsWith("lavfi.signalstats.YMAX=")) {
-//                current.setYmax((int) value);
-//            } else if (line.startsWith("lavfi.signalstats.YAVG=")) {
-//                current.setYavg((float) value);
-//            }
-//        }
-//
-//        if (current != null) {
-//            frames.add(current);
-//        }
-//        return new VideoStats(frames, metadata);
-//    }
+        //ffmpeg -v info -hide_banner -nostats -i "X:\path\to\input.mov" -af "astats=metadata=0:reset=0" -f null NUL
+
+        List<String> command = new ArrayList<>();
+
+        command.add(ffmpegBinary);
+        command.add("-v");
+        command.add("info");
+        command.add("-hide_banner");
+        command.add("-nostats");
+        command.add("-i");
+
+        command.add(videoFile.toAbsolutePath().toString());
+
+        command.add("-af");
+        command.add("astats=metadata=0:reset=0");
+        command.add("-f");
+        command.add("null");
+        command.add("NUL");
+
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+
+        try {
+            Process process = pb.start();
+
+            String stderr;
+            try (InputStream err = process.getErrorStream()) {
+                stderr = new String(err.readAllBytes());
+            }
+
+            int exit = process.waitFor();
+            if (exit != 0) {
+                throw new FFmpegException("ffmpeg failed (exit=" + exit + "): " + stderr);
+            }
+            JsonNode parsedRoot = parseAstatsToJson(stderr);
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(statsFile.toFile(), parsedRoot);
+            return mapToAudioStats(parsedRoot);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new FFmpegException("Interrupted while running ffmpeg", e);
+        } catch (IOException e) {
+            throw new FFmpegException("Unable to execute ffmpeg", e);
+        } finally {
+            try {
+                Files.deleteIfExists(statsFile);
+            } catch (IOException e) {
+                throw new FFmpegException("Unable to delete temporary audio stats file", e);
+            }
+        }
+    }
+
+    private AudioStats mapToAudioStats(JsonNode root) {
+        JsonNode overall = root.path("overall");
+        float truePeak = parseFloatOrNegativeInfinity(overall.path("peak_level_db").asString());
+        float dcOffset = parseFloatOrNegativeInfinity(overall.path("dc_offset").asString());
+        float rms = parseFloatOrNegativeInfinity(overall.path("rms_level_db").asString());
+        return new AudioStats(truePeak, dcOffset, rms);
+    }
+
+    private JsonNode parseAstatsToJson(String stderr) {
+        var root = objectMapper.createObjectNode();
+        var overallNode = objectMapper.createObjectNode();
+        root.set("overall", overallNode);
+        boolean inOverallSection = false;
+
+        for (String rawLine : stderr.split("\\R")) {
+            String line = stripFfmpegPrefix(rawLine).trim();
+            if (line.isEmpty()) {
+                continue;
+            }
+
+
+            if ("Overall".equalsIgnoreCase(line)) {
+                inOverallSection = true;
+                continue;
+            }
+            if (!inOverallSection) {
+                continue;
+            }
+
+            int separator = line.indexOf(':');
+            if (separator <= 0 || separator == line.length() - 1) {
+                continue;
+            }
+
+            String metricName = line.substring(0, separator).trim();
+            String metricValue = line.substring(separator + 1).trim();
+            String metricKey = normalizeMetricKey(metricName);
+            overallNode.put(metricKey, metricValue);
+        }
+
+        return root;
+    }
+
+    private String stripFfmpegPrefix(String line) {
+        int marker = line.lastIndexOf("] ");
+        if (marker >= 0 && marker + 2 < line.length()) {
+            return line.substring(marker + 2);
+        }
+        return line;
+    }
+
+    private String normalizeMetricKey(String metricName) {
+        return metricName
+                .toLowerCase()
+                .replace("(", "")
+                .replace(")", "")
+                .replace(".", "")
+                .replace("/", "_")
+                .replace(" ", "_");
+    }
+
+    private float parseFloatOrNegativeInfinity(String value) {
+        if (value == null || value.isBlank()) {
+            return Float.NEGATIVE_INFINITY;
+        }
+        String normalized = value.trim().toLowerCase();
+        if ("inf".equals(normalized) || "+inf".equals(normalized) || "infinity".equals(normalized) || "+infinity".equals(normalized)) {
+            return Float.POSITIVE_INFINITY;
+        }
+        if ("-inf".equals(normalized) || "-infinity".equals(normalized)) {
+            return Float.NEGATIVE_INFINITY;
+        }
+        Matcher matcher = NUMERIC_PATTERN.matcher(value);
+        if (!matcher.find()) {
+            return Float.NEGATIVE_INFINITY;
+        }
+        try {
+            return Float.parseFloat(matcher.group());
+        } catch (NumberFormatException e) {
+            return Float.NEGATIVE_INFINITY;
+        }
+    }
 
     /**
      * Saves VideoStats object into a compressed json
@@ -286,12 +389,6 @@ public class FFClient {
         }
     }
 
-
-    private String stripExtension(String fileName) {
-        int dot = fileName.lastIndexOf('.');
-        return dot > 0 ? fileName.substring(0, dot) : fileName;
-    }
-
     private List<VideoStats.FrameStats> parseStatsFromJson(JsonNode root) {
         List<VideoStats.FrameStats> frames = new ArrayList<>();
 
@@ -311,18 +408,6 @@ public class FFClient {
 
         return frames;
     }
-
-//    private int parseInt(JsonNode tags, String key) {
-//        String v = tags.path(key).asString(null);
-//        if (v == null || v.isBlank()) return 0;
-//        return (int) Double.parseDouble(v);
-//    }
-//
-//    private float parseFloat(JsonNode tags, String key) {
-//        String v = tags.path(key).asString(null);
-//        if (v == null || v.isBlank()) return 0f;
-//        return Float.parseFloat(v);
-//    }
 
     private VideoMetadata mapToMetadata(JsonNode root) {
         JsonNode format = root.path("format");

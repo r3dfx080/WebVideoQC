@@ -78,6 +78,19 @@ h1 {
   background: #b7bfd3;
   cursor: default;
 }
+.analyze-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.analyze-option {
+  font-size: 13px;
+  color: #202124;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .workdir-search-wrap {
   display: block;
   margin-bottom: 8px;
