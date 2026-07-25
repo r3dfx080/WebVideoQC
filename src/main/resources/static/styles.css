@@ -135,15 +135,31 @@ h1 {
   grid-row: 1;
   border-bottom: 2px solid #111;
 }
-.panel-spacer {
-  grid-column: 1 / span 2;
+.panel-row2 {
+  grid-column: 1 / span 3;
   grid-row: 2;
+  display: grid;
+  grid-template-columns: 2.1fr 1.35fr 1.55fr;
+  min-height: 0;
+}
+.panel-row2 .panel-spacer {
+  grid-column: 1;
+  grid-row: 1;
   border-right: 2px solid #111;
   border-bottom: 2px solid #111;
 }
-.panel-metadata {
+.panel-row2 .panel-metadata {
+  grid-column: 2;
+  grid-row: 1;
+  border-right: 2px solid #111;
+  border-bottom: 2px solid #111;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.panel-row2 .panel-audio-stats {
   grid-column: 3;
-  grid-row: 2;
+  grid-row: 1;
   border-bottom: 2px solid #111;
   display: flex;
   flex-direction: column;
@@ -181,15 +197,16 @@ h1 {
   font-size: 14px;
   box-sizing: border-box;
 }
-#meta {
+#meta,
+#audioStats {
   background: #fff;
   border-radius: 8px;
   padding: 12px;
   font-size: 13px;
   border: 1px solid #e2e5e9;
-  min-height: 0;
-  overflow: auto;
-  flex: 1;
+  min-height: auto;
+  overflow: visible;
+  flex: 0 0 auto;
 }
 .meta-list {
   display: flex;

@@ -34,13 +34,20 @@
     <div class="placeholder"></div>
   </section>
 
-  <section class="panel panel-spacer">
-    <div class="placeholder"></div>
-  </section>
+  <section class="panel-row2">
+    <section class="panel panel-spacer">
+      <div class="placeholder"></div>
+    </section>
 
-  <section class="panel panel-metadata">
-    <h2 class="panel-title">Metadata</h2>
-    <div id="meta">No data</div>
+    <section class="panel panel-metadata">
+      <h2 class="panel-title">Metadata</h2>
+      <div id="meta">No data</div>
+    </section>
+
+    <section class="panel panel-audio-stats">
+      <h2 class="panel-title">AudioStats</h2>
+      <div id="audioStats">No data</div>
+    </section>
   </section>
 
   <section class="panel panel-chart">
@@ -356,6 +363,10 @@
       const mbps = (n / 1_000_000).toFixed(2).replace(/\.?0+$/, "");
       return `${mbps} Mb/s`;
     };
+    const formatFps = (fps) => {
+      const n = Number(fps);
+      return Number.isFinite(n) ? n.toFixed(3) : "—";
+    };
     const vm = (report && report.videoMetadata) || {};
     const rows = [
       ["Video path", formatVideoPath(report && report.videoPath ? report.videoPath : "—")],
@@ -364,7 +375,7 @@
       ["Pixel format", vm.pixelFormat || vm.pixFmt || "—"],
       ["Color range", vm.colorRange || "—"],
       ["Field order", vm.fieldOrder || "—"],
-      ["FPS", vm.fps != null ? vm.fps : "—"],
+      ["FPS", formatFps(vm.fps)],
       ["Duration", formatDuration(vm.duration)],
       ["Bitrate", formatBitrateMbps(vm.bitRate)]
     ];
@@ -372,6 +383,50 @@
     const meta = document.getElementById("meta");
     meta.classList.add("meta-list");
     meta.innerHTML = rows.map(([label, value]) =>
+      '<div class="meta-row"><span class="meta-label">' + escapeHtml(label) + '</span><span class="meta-value">' + escapeHtml(value) + "</span></div>"
+    ).join("");
+  }
+
+  function renderAudioStats(report) {
+    const audio = report && report.audioStats ? report.audioStats : null;
+    const audioStats = document.getElementById("audioStats");
+    if (!audioStats) {
+      return;
+    }
+    if (!audio) {
+      audioStats.classList.remove("meta-list");
+      audioStats.textContent = "No audio stats";
+      return;
+    }
+
+    const toFiniteNumber = (value) => {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    };
+    const formatDb = (value) => {
+      const n = toFiniteNumber(value);
+      return n == null ? "—" : (n.toFixed(2) + " dBFS");
+    };
+    const formatLufs = (value) => {
+      const n = toFiniteNumber(value);
+      return n == null ? "—" : (n.toFixed(2) + " LUFS");
+    };
+    const formatDcOffset = (value) => {
+      const n = toFiniteNumber(value);
+      return n == null ? "—" : n.toFixed(3);
+    };
+
+    const rows = [
+      ["True peak", formatDb(audio.truePeak)],
+      ["RMS", formatDb(audio.rms)],
+      ["DC offset", formatDcOffset(audio.dcOffset)]
+    ];
+    if (audio.containsLoudnessData === true) {
+      rows.push(["Integrated loudness", formatLufs(audio.integratedLoudness)]);
+    }
+
+    audioStats.classList.add("meta-list");
+    audioStats.innerHTML = rows.map(([label, value]) =>
       '<div class="meta-row"><span class="meta-label">' + escapeHtml(label) + '</span><span class="meta-value">' + escapeHtml(value) + "</span></div>"
     ).join("");
   }
@@ -566,17 +621,28 @@
 
   async function loadReport() {
     const meta = document.getElementById("meta");
+    const audioStats = document.getElementById("audioStats");
     meta.textContent = "Loading...";
+    if (audioStats) {
+      audioStats.textContent = "Loading...";
+    }
     try {
       const report = await fetchLatestReport();
       latestReport = report;
       renderMetadata(report);
+      renderAudioStats(report);
       drawChart(report);
     } catch (e) {
       if (e && e.message === "No report found") {
         meta.textContent = "No report found";
+        if (audioStats) {
+          audioStats.textContent = "No report found";
+        }
       } else {
         meta.textContent = "Failed to load report: " + e.message;
+        if (audioStats) {
+          audioStats.textContent = "Failed to load report: " + e.message;
+        }
       }
     }
   }
