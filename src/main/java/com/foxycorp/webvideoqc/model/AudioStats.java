@@ -1,5 +1,6 @@
 package com.foxycorp.webvideoqc.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -24,10 +25,12 @@ public class AudioStats {
         return dcOffset > 1.0;
     }
 
+    @JsonProperty
     public boolean hasClipping() {
         return truePeak >= 0.0;
     }
 
+    @JsonProperty
     public boolean containsLoudnessData() {
         return !Float.isNaN(integratedLoudness);
     }

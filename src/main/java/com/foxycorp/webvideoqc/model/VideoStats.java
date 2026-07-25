@@ -1,5 +1,6 @@
 package com.foxycorp.webvideoqc.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.Getter;
@@ -20,7 +21,8 @@ public class VideoStats {
     private VideoMetadata videoMetadata;
     private Optional<AudioStats> audioStats;
 
-    @Data
+    @Getter
+    @Setter
     public static class FrameStats {
         private int ylow;
         private int ymin;
@@ -41,10 +43,14 @@ public class VideoStats {
         return !videoMetadata.fieldOrder().equals("progressive");
     }
 
+    public boolean isLimitedRange() {return videoMetadata.colorRange().equals("tv");}
+
+    @JsonProperty
     public String getFilename() {
         return videoPath.getFileName().toString();
     }
 
+    @JsonProperty
     public boolean areAudioStatsPresent() {
         return audioStats.isPresent();
     }
