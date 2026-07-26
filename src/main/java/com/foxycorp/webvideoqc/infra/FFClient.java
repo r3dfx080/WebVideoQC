@@ -4,6 +4,8 @@ import com.foxycorp.webvideoqc.model.AudioStats;
 import com.foxycorp.webvideoqc.model.VideoMetadata;
 import com.foxycorp.webvideoqc.model.VideoStats;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -28,15 +30,18 @@ public class FFClient {
     private final String ffprobeBinary;
     private final String ffmpegBinary;
     private final String workDir = System.getProperty("user.dir");
+    private final Environment env;
 
     public FFClient(
             ObjectMapper objectMapper,
             @Value("${webvideoqc.ffprobe.binary}") String ffprobeBinary,
-            @Value("${webvideoqc.ffmpeg.binary}") String ffmpegBinary
+            @Value("${webvideoqc.ffmpeg.binary}") String ffmpegBinary,
+            Environment env
     ) {
         this.objectMapper = objectMapper;
         this.ffprobeBinary = ffprobeBinary;
         this.ffmpegBinary = ffmpegBinary;
+        this.env = env;
     }
 
     public VideoMetadata getMetadata(Path videoFile) {
@@ -90,9 +95,10 @@ public class FFClient {
     public VideoStats getVideoStats(Path videoFile, Boolean analyzeAudio, Boolean analyzeAudioExtended) {
         validateInput(videoFile);
 
-        Path statsFile;
+        Path statsFile = Path.of(workDir + "\\temp-signalstats.json");
         try {
-            statsFile = Files.createFile(Path.of(workDir + "\\temp-signalstats.json"));
+            Files.deleteIfExists(statsFile);
+            Files.createFile(statsFile);
         } catch (IOException e) {
             throw new FFprobeException("Unable to allocate temp video stats file", e);
         }
@@ -157,18 +163,21 @@ public class FFClient {
         } catch (IOException e) {
             throw new FFprobeException("Unable to execute ffprobe", e);
         } finally {
-            try {
-                Files.deleteIfExists(statsFile);
-            } catch (IOException e) {
-                throw new FFprobeException("Unable to delete temporary stats file", e);
+            if (env.acceptsProfiles(Profiles.of("dev"))) {
+                try {
+                    Files.deleteIfExists(statsFile);
+                } catch (IOException e) {
+                    throw new FFprobeException("Unable to delete temporary stats file", e);
+                }
             }
         }
     }
 
     public AudioStats getBasicAudioStats(Path videoFile) {
-        Path statsFile;
+        Path statsFile = Path.of(workDir + "\\temp-basic-audiostats.json");
         try {
-            statsFile = Files.createFile(Path.of(workDir + "\\temp-basic-audiostats.json"));
+            Files.deleteIfExists(statsFile);
+            Files.createFile(statsFile);
         } catch (IOException e) {
             throw new FFprobeException("Unable to allocate temp audio stats file", e);
         }
@@ -216,10 +225,12 @@ public class FFClient {
         } catch (IOException e) {
             throw new FFmpegException("Unable to execute ffmpeg", e);
         } finally {
-            try {
-                Files.deleteIfExists(statsFile);
-            } catch (IOException e) {
-                throw new FFmpegException("Unable to delete temporary audio stats file", e);
+            if (env.acceptsProfiles(Profiles.of("dev"))) {
+                try {
+                    Files.deleteIfExists(statsFile);
+                } catch (IOException e) {
+                    throw new FFmpegException("Unable to delete temporary audio stats file", e);
+                }
             }
         }
     }
@@ -227,9 +238,10 @@ public class FFClient {
     public float getLoudness(Path videoFile) {
         validateInput(videoFile);
 
-        Path loudnessStatsFile;
+        Path loudnessStatsFile = Path.of(workDir + "\\temp-loudness-stats.log");
         try {
-            loudnessStatsFile = Files.createFile(Path.of(workDir + "\\temp-loudness-stats.log"));
+            Files.deleteIfExists(loudnessStatsFile);
+            Files.createFile(loudnessStatsFile);
         } catch (IOException e) {
             throw new FFprobeException("Unable to allocate temp video stats file", e);
         }
@@ -278,10 +290,12 @@ public class FFClient {
         } catch (IOException e) {
             throw new FFmpegException("Unable to execute ffmpeg", e);
         } finally {
-            try {
-                Files.deleteIfExists(loudnessStatsFile);
-            } catch (IOException e) {
-                throw new FFmpegException("Unable to delete temporary audio stats file", e);
+            if (env.acceptsProfiles(Profiles.of("dev"))) {
+                try {
+                    Files.deleteIfExists(loudnessStatsFile);
+                } catch (IOException e) {
+                    throw new FFmpegException("Unable to delete temporary audio stats file", e);
+                }
             }
         }
     }
