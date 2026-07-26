@@ -71,7 +71,7 @@ public class FFClient {
                 throw new FFprobeException("ffprobe failed (exit=" + exit + "): " + stderr);
             }
 
-            return mapToMetadata(root);
+            return mapToVideoMetadata(root);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new FFprobeException("Interrupted while running ffprobe", e);
@@ -137,13 +137,16 @@ public class FFClient {
 
             JsonNode statsRoot = objectMapper.readTree(statsFile.toFile());
 
-            List<VideoStats.FrameStats> frameStatsList = parseStatsFromJson(statsRoot);
+            List<VideoStats.FrameStats> frameStatsList = parseFrameStatsFromJson(statsRoot);
 
             VideoMetadata metadata = getMetadata(videoFile);
 
             Optional<AudioStats> audioStats = Optional.empty();
             if (analyzeAudio) {
                 audioStats = Optional.of(getBasicAudioStats(videoFile));
+                if (analyzeAudioExtended) {
+                    audioStats.get().setIntegratedLoudness(getLoudness(videoFile));
+                }
             }
 
             return new VideoStats(videoFile, frameStatsList, metadata, audioStats);
@@ -221,6 +224,72 @@ public class FFClient {
         }
     }
 
+    public float getLoudness(Path videoFile) {
+        validateInput(videoFile);
+
+        Path loudnessStatsFile;
+        try {
+            loudnessStatsFile = Files.createFile(Path.of(workDir + "\\temp-loudness-stats.log"));
+        } catch (IOException e) {
+            throw new FFprobeException("Unable to allocate temp video stats file", e);
+        }
+
+        //ffmpeg -hide_banner -nostats -i I:\bars.mov -af loudnorm=print_format=json -f null -
+
+        List<String> command = new ArrayList<>();
+
+        command.add(ffmpegBinary);
+        command.add("-hide_banner");
+        command.add("-nostats");
+        command.add("-i");
+        command.add(videoFile.toAbsolutePath().toString());
+        command.add("-af");
+        command.add("loudnorm=print_format=json");
+        command.add("-f");
+        command.add("null");
+        command.add("-");
+
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.redirectError(loudnessStatsFile.toFile());
+        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+
+        try {
+            Process process = pb.start();
+
+            int exit = process.waitFor();
+            String stderr = Files.readString(loudnessStatsFile);
+            if (exit != 0) {
+                throw new FFmpegException("ffmpeg failed (exit=" + exit + "): " + stderr);
+            }
+            int jsonStart = stderr.indexOf('{');
+            int jsonEnd = stderr.lastIndexOf('}');
+            if (jsonStart < 0 || jsonEnd < 0 || jsonEnd <= jsonStart) {
+                throw new FFmpegException("Unable to parse loudnorm output JSON from ffmpeg stderr");
+            }
+
+            String jsonPayload = stderr.substring(jsonStart, jsonEnd + 1);
+
+            JsonNode statsRoot = objectMapper.readTree(jsonPayload);
+
+            return extractLoudnessData(statsRoot);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new FFmpegException("Interrupted while running ffmpeg", e);
+        } catch (IOException e) {
+            throw new FFmpegException("Unable to execute ffmpeg", e);
+        } finally {
+            try {
+                Files.deleteIfExists(loudnessStatsFile);
+            } catch (IOException e) {
+                throw new FFmpegException("Unable to delete temporary audio stats file", e);
+            }
+        }
+    }
+
+    private float extractLoudnessData(JsonNode root) {
+        return Float.parseFloat(root.get("output_i").asString());
+    }
+
     private AudioStats mapToAudioStats(JsonNode root) {
         JsonNode overall = root.path("overall");
         float truePeak = parseFloatOrNegativeInfinity(overall.path("peak_level_db").asString());
@@ -283,24 +352,16 @@ public class FFClient {
     }
 
     private float parseFloatOrNegativeInfinity(String value) {
-        if (value == null || value.isBlank()) {
-            return Float.NEGATIVE_INFINITY;
-        }
         String normalized = value.trim().toLowerCase();
-        if ("inf".equals(normalized) || "+inf".equals(normalized) || "infinity".equals(normalized) || "+infinity".equals(normalized)) {
-            return Float.POSITIVE_INFINITY;
-        }
-        if ("-inf".equals(normalized) || "-infinity".equals(normalized)) {
-            return Float.NEGATIVE_INFINITY;
-        }
         Matcher matcher = NUMERIC_PATTERN.matcher(value);
-        if (!matcher.find()) {
+
+        if ("-inf".equals(normalized) || !matcher.find()) {
             return Float.NEGATIVE_INFINITY;
         }
         try {
             return Float.parseFloat(matcher.group());
         } catch (NumberFormatException e) {
-            return Float.NEGATIVE_INFINITY;
+            return Float.NaN;
         }
     }
 
@@ -389,7 +450,7 @@ public class FFClient {
         }
     }
 
-    private List<VideoStats.FrameStats> parseStatsFromJson(JsonNode root) {
+    private List<VideoStats.FrameStats> parseFrameStatsFromJson(JsonNode root) {
         List<VideoStats.FrameStats> frames = new ArrayList<>();
 
         for (JsonNode frame : root.path("frames")) {
@@ -409,7 +470,7 @@ public class FFClient {
         return frames;
     }
 
-    private VideoMetadata mapToMetadata(JsonNode root) {
+    private VideoMetadata mapToVideoMetadata(JsonNode root) {
         JsonNode format = root.path("format");
         JsonNode streams = root.path("streams");
 

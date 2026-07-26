@@ -2,7 +2,6 @@ package com.foxycorp.webvideoqc.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -21,16 +20,6 @@ public class VideoStats {
     private VideoMetadata videoMetadata;
     private Optional<AudioStats> audioStats;
 
-    @Getter
-    @Setter
-    public static class FrameStats {
-        private int ylow;
-        private int ymin;
-        private int yhigh;
-        private int ymax;
-        private float yavg;
-    }
-
     public boolean isSD() {
         return videoMetadata.height() == 576 || videoMetadata.height() == 480 || videoMetadata.height() == 486;
     }
@@ -43,7 +32,9 @@ public class VideoStats {
         return !videoMetadata.fieldOrder().equals("progressive");
     }
 
-    public boolean isLimitedRange() {return videoMetadata.colorRange().equals("tv");}
+    public boolean isLimitedRange() {
+        return videoMetadata.colorRange().equals("tv");
+    }
 
     @JsonProperty
     public String getFilename() {
@@ -53,6 +44,16 @@ public class VideoStats {
     @JsonProperty
     public boolean areAudioStatsPresent() {
         return audioStats.isPresent();
+    }
+
+    @Getter
+    @Setter
+    public static class FrameStats {
+        private int ylow;
+        private int ymin;
+        private int yhigh;
+        private int ymax;
+        private float yavg;
     }
 }
 

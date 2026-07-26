@@ -45,10 +45,10 @@ public class ApiExceptionHandler {
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "FFMPEG_ERROR", ex.getMessage());
     }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> internal(Exception ex) {
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Unexpected server error");
-    }
+//    @ExceptionHandler(Exception.class)
+//    public ResponseEntity<ErrorResponse> internal(Exception ex) {
+//        return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Unexpected server error");
+//    }
 
     private ResponseEntity<ErrorResponse> build(HttpStatus status, String code, String message) {
         return ResponseEntity.status(status).body(new ErrorResponse(code, message));

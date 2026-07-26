@@ -1,693 +1,698 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WebVideoQC</title>
-  <link rel="stylesheet" href="/styles.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>WebVideoQC</title>
+    <link href="/styles.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 <h1>WebVideoQC</h1>
 <div class="layout-grid">
-  <section class="panel panel-workdir">
-    <h2 class="panel-title">Workdir files</h2>
-    <label class="workdir-search-wrap" for="workdirSearch">
-      <input id="workdirSearch" type="search" placeholder="Search files...">
-    </label>
-    <div id="workdirFiles" class="placeholder">Loading...</div>
-  </section>
-
-  <section class="panel panel-actions">
-    <h2 class="panel-title">Analyze / Load</h2>
-    <button id="analyzeButton" class="action-button" type="button" disabled>Analyze selected file</button>
-    <div id="analyzeOptions" class="analyze-options">
-      <label class="analyze-option"><input id="analyzeAudioCheckbox" type="checkbox" checked> Analyze audio</label>
-      <label class="analyze-option"><input id="calculateLoudnessCheckbox" type="checkbox"> Calculate loudness</label>
-    </div>
-    <div id="analyzeSelectionHint" class="placeholder">Select a file in Workdir files</div>
-    <div id="analyzeStatus" class="placeholder"></div>
-  </section>
-
-  <section class="panel panel-reports">
-    <h2 class="panel-title">Previous reports here</h2>
-    <div class="placeholder"></div>
-  </section>
-
-  <section class="panel-row2">
-    <section class="panel panel-spacer">
-      <div class="placeholder"></div>
+    <section class="panel panel-workdir">
+        <h2 class="panel-title">Workdir files</h2>
+        <label class="workdir-search-wrap" for="workdirSearch">
+            <input id="workdirSearch" placeholder="Search files..." type="search">
+        </label>
+        <div class="placeholder" id="workdirFiles">Loading...</div>
     </section>
 
-    <section class="panel panel-metadata">
-      <h2 class="panel-title">Metadata</h2>
-      <div id="meta">No data</div>
+    <section class="panel panel-actions">
+        <h2 class="panel-title">Analyze / Load</h2>
+        <button class="action-button" disabled id="analyzeButton" type="button">Analyze selected file</button>
+        <div class="analyze-options" id="analyzeOptions">
+            <label class="analyze-option"><input checked id="analyzeAudioCheckbox" type="checkbox"> Analyze
+                audio</label>
+            <label class="analyze-option"><input id="calculateLoudnessCheckbox" type="checkbox"> Calculate
+                loudness</label>
+        </div>
+        <div class="placeholder" id="analyzeSelectionHint">Select a file in Workdir files</div>
+        <div class="placeholder" id="analyzeStatus"></div>
     </section>
 
-    <section class="panel panel-audio-stats">
-      <h2 class="panel-title">AudioStats</h2>
-      <div id="audioStats">No data</div>
+    <section class="panel panel-reports">
+        <h2 class="panel-title">Previous reports here</h2>
+        <div class="placeholder"></div>
     </section>
-  </section>
 
-  <section class="panel panel-chart">
-    <div id="lumaChartScroll" class="chart-scroll">
-      <div id="lumaChartInner" class="chart-inner">
-        <canvas id="lumaChart"></canvas>
-      </div>
-    </div>
-  </section>
+    <section class="panel-row2">
+        <section class="panel panel-spacer">
+            <div class="placeholder"></div>
+        </section>
 
-  <section class="panel panel-preview">
-    <h2 class="panel-title">Frame preview</h2>
-    <label class="overlay-option">
-      <input id="overlayToggle" type="checkbox" checked> Overlay pixels outside of broadcast range
-    </label>
-    <div id="previewInfo">Click a chart point to preview a frame</div>
-    <img id="previewImage">
-  </section>
+        <section class="panel panel-metadata">
+            <h2 class="panel-title">Metadata</h2>
+            <div id="meta">No data</div>
+        </section>
+
+        <section class="panel panel-audio-stats">
+            <h2 class="panel-title">AudioStats</h2>
+            <div id="audioStats">No data</div>
+        </section>
+    </section>
+
+    <section class="panel panel-chart">
+        <div class="chart-scroll" id="lumaChartScroll">
+            <div class="chart-inner" id="lumaChartInner">
+                <canvas id="lumaChart"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel panel-preview">
+        <h2 class="panel-title">Frame preview</h2>
+        <label class="overlay-option">
+            <input checked id="overlayToggle" type="checkbox"> Overlay pixels outside of broadcast range
+        </label>
+        <div id="previewInfo">Click a chart point to preview a frame</div>
+        <img id="previewImage">
+    </section>
 </div>
 <script>
-  let chart;
-  let previewObjectUrl;
-  let currentPreviewFrame = null;
-  let latestReport = null;
-  let allWorkdirFiles = [];
-  let selectedWorkdirPath = null;
-  let xZoomScale = 1;
-  let pendingZoomFrame = null;
-  let pendingWheelPayload = null;
-  let zoomResizeDebounceTimer = null;
-  const MIN_X_ZOOM_SCALE = 1;
-  const MAX_X_ZOOM_SCALE = 20;
-  const WHEEL_ZOOM_IN_FACTOR = 1.08;
-  const WHEEL_ZOOM_OUT_FACTOR = 0.92;
-  const ZOOM_RESIZE_DEBOUNCE_MS = 140;
-  const WORKDIR_SCROLL_THRESHOLD = 12;
-  function escapeHtml(value) {
-    return String(value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-  }
+    let chart;
+    let previewObjectUrl;
+    let currentPreviewFrame = null;
+    let latestReport = null;
+    let allWorkdirFiles = [];
+    let selectedWorkdirPath = null;
+    let xZoomScale = 1;
+    let pendingZoomFrame = null;
+    let pendingWheelPayload = null;
+    let zoomResizeDebounceTimer = null;
+    const MIN_X_ZOOM_SCALE = 1;
+    const MAX_X_ZOOM_SCALE = 20;
+    const WHEEL_ZOOM_IN_FACTOR = 1.08;
+    const WHEEL_ZOOM_OUT_FACTOR = 0.92;
+    const ZOOM_RESIZE_DEBOUNCE_MS = 140;
+    const WORKDIR_SCROLL_THRESHOLD = 12;
 
-  async function parseApiError(response) {
-    const fallback = "HTTP " + response.status;
-    const contentType = String(response.headers.get("content-type") || "").toLowerCase();
-    try {
-      if (contentType.includes("application/json")) {
-        const payload = await response.json();
-        if (payload && (payload.code || payload.message)) {
-          const code = payload.code ? String(payload.code) : null;
-          const message = payload.message ? String(payload.message) : fallback;
-          return code ? (code + ": " + message) : message;
-        }
-        return fallback;
-      }
-      const text = (await response.text()).trim();
-      return text || fallback;
-    } catch (_ignored) {
-      return fallback;
-    }
-  }
-
-  async function fetchWorkdirFiles() {
-    const response = await fetch("/api/videos/workdir-files");
-    if (!response.ok) {
-      throw new Error(await parseApiError(response));
-    }
-    return await response.json();
-  }
-  function getFilteredWorkdirFiles() {
-    const searchInput = document.getElementById("workdirSearch");
-    const query = searchInput ? searchInput.value.trim().toLowerCase() : "";
-    if (!query) {
-      return allWorkdirFiles;
-    }
-    return allWorkdirFiles.filter((entry) =>
-      String(entry && entry.name ? entry.name : "").toLowerCase().includes(query)
-    );
-  }
-
-  function renderWorkdirFiles(files) {
-    const container = document.getElementById("workdirFiles");
-    if (!container) {
-      return;
-    }
-    if (!Array.isArray(allWorkdirFiles) || allWorkdirFiles.length === 0) {
-      container.classList.remove("workdir-file-list");
-      container.classList.remove("workdir-file-list--scrollable");
-      container.textContent = "No files in configured user workdir";
-      return;
+    function escapeHtml(value) {
+        return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
     }
 
-    if (!Array.isArray(files) || files.length === 0) {
-      container.classList.remove("workdir-file-list");
-      container.classList.remove("workdir-file-list--scrollable");
-      container.textContent = "No files match your search";
-      return;
-    }
-
-    container.classList.add("workdir-file-list");
-    container.classList.toggle("workdir-file-list--scrollable", files.length > WORKDIR_SCROLL_THRESHOLD);
-    container.innerHTML = "";
-    for (const entry of files) {
-      const item = document.createElement("div");
-      item.className = "workdir-file-item";
-      if (entry && entry.path === selectedWorkdirPath) {
-        item.classList.add("workdir-file-item--selected");
-      }
-      item.dataset.path = entry && entry.path ? entry.path : "";
-      item.textContent = entry && entry.name ? entry.name : "";
-      container.appendChild(item);
-    }
-  }
-
-  function getSelectedWorkdirFile() {
-    if (!selectedWorkdirPath) {
-      return null;
-    }
-    return allWorkdirFiles.find((entry) => entry && entry.path === selectedWorkdirPath) || null;
-  }
-
-  function updateAnalyzeSelectionUI() {
-    const analyzeButton = document.getElementById("analyzeButton");
-    const hint = document.getElementById("analyzeSelectionHint");
-    const selected = getSelectedWorkdirFile();
-    if (analyzeButton) {
-      analyzeButton.disabled = !selected;
-    }
-    if (hint) {
-      hint.textContent = selected
-        ? ("Selected: " + selected.name)
-        : "Select a file in Workdir files";
-    }
-  }
-
-  async function loadWorkdirFiles() {
-    const container = document.getElementById("workdirFiles");
-    if (!container) {
-      return;
-    }
-    container.classList.remove("workdir-file-list");
-    container.classList.remove("workdir-file-list--scrollable");
-    container.textContent = "Loading...";
-    try {
-      const files = await fetchWorkdirFiles();
-      allWorkdirFiles = Array.isArray(files) ? files : [];
-      if (!allWorkdirFiles.some((entry) => entry && entry.path === selectedWorkdirPath)) {
-        selectedWorkdirPath = null;
-      }
-      renderWorkdirFiles(getFilteredWorkdirFiles());
-      updateAnalyzeSelectionUI();
-    } catch (e) {
-      allWorkdirFiles = [];
-      selectedWorkdirPath = null;
-      container.textContent = "Failed to load files: " + e.message;
-      updateAnalyzeSelectionUI();
-    }
-  }
-
-  function setupWorkdirSearch() {
-    const searchInput = document.getElementById("workdirSearch");
-    if (!searchInput || searchInput.dataset.searchInitialized === "true") {
-      return;
-    }
-    searchInput.addEventListener("input", () => {
-      renderWorkdirFiles(getFilteredWorkdirFiles());
-    });
-    searchInput.dataset.searchInitialized = "true";
-  }
-
-  function setupWorkdirPicker() {
-    const container = document.getElementById("workdirFiles");
-    if (!container || container.dataset.pickerInitialized === "true") {
-      return;
-    }
-    container.addEventListener("click", (event) => {
-      const target = event.target;
-      if (!(target instanceof Element)) {
-        return;
-      }
-      const item = target.closest(".workdir-file-item");
-      if (!item) {
-        return;
-      }
-      const nextPath = item.dataset.path || null;
-      selectedWorkdirPath = nextPath;
-      renderWorkdirFiles(getFilteredWorkdirFiles());
-      updateAnalyzeSelectionUI();
-    });
-    container.dataset.pickerInitialized = "true";
-  }
-
-  async function analyzeSelectedWorkdirFile() {
-    const selected = getSelectedWorkdirFile();
-    const status = document.getElementById("analyzeStatus");
-    const button = document.getElementById("analyzeButton");
-    if (!selected) {
-      if (status) {
-        status.textContent = "Select a file first";
-      }
-      return;
-    }
-
-    if (button) {
-      button.disabled = true;
-    }
-    if (status) {
-      status.textContent = "Analyzing " + selected.name + "...";
-    }
-
-    try {
-      const response = await fetch("/api/videos/analyze-by-path", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          path: selected.path,
-          analyzeAudio: !!document.getElementById("analyzeAudioCheckbox").checked,
-          analyzeAudioExtended: !!document.getElementById("calculateLoudnessCheckbox").checked
-        })
-      });
-      if (!response.ok) {
-        throw new Error(await parseApiError(response));
-      }
-      if (status) {
-        status.textContent = "Analysis complete";
-      }
-      await loadWorkdirFiles();
-      await loadReport();
-    } catch (e) {
-      if (status) {
-        status.textContent = "Analyze failed: " + e.message;
-      }
-    } finally {
-      updateAnalyzeSelectionUI();
-    }
-  }
-
-  function setupAnalyzeButton() {
-    const button = document.getElementById("analyzeButton");
-    if (!button || button.dataset.analyzeInitialized === "true") {
-      return;
-    }
-    button.addEventListener("click", analyzeSelectedWorkdirFile);
-    button.dataset.analyzeInitialized = "true";
-
-    // wire checkboxes dependency
-    const analyzeAudioCheckbox = document.getElementById("analyzeAudioCheckbox");
-    const calculateLoudnessCheckbox = document.getElementById("calculateLoudnessCheckbox");
-    if (analyzeAudioCheckbox && calculateLoudnessCheckbox) {
-      // ensure initial state (preserve checked state even when disabled)
-      calculateLoudnessCheckbox.disabled = !analyzeAudioCheckbox.checked;
-      let preservedLoudness = calculateLoudnessCheckbox.checked;
-      analyzeAudioCheckbox.addEventListener("change", () => {
-        calculateLoudnessCheckbox.disabled = !analyzeAudioCheckbox.checked;
-        if (analyzeAudioCheckbox.checked) {
-          calculateLoudnessCheckbox.checked = preservedLoudness;
-        } else {
-          preservedLoudness = calculateLoudnessCheckbox.checked;
-        }
-      });
-      calculateLoudnessCheckbox.addEventListener("change", () => {
-        preservedLoudness = calculateLoudnessCheckbox.checked;
-      });
-    }
-  }
-
-  async function fetchLatestReport() {
-    const response = await fetch("/api/videos/reports/latest");
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error("No report found");
-      }
-      const detail = await parseApiError(response);
-      throw new Error(detail);
-    }
-    return await response.json();
-  }
-
-  function renderMetadata(report) {
-
-    const formatDuration = (value) => {
-      if (!value) return "—";
-      if (typeof value !== "string") return String(value);
-
-      const simple = value.match(/^(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/);
-      if (simple) {
-        return `${simple[1]}:${simple[2]}:${simple[3]}`;
-      }
-
-      const iso = value.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/);
-      if (!iso) return value;
-
-      const h = Number(iso[1] || 0);
-      const m = Number(iso[2] || 0);
-      const s = Number(iso[3] || 0);
-      const totalSeconds = Math.floor(h * 3600 + m * 60 + s);
-      const hh = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
-      const mm = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
-      const ss = String(totalSeconds % 60).padStart(2, "0");
-      return `${hh}:${mm}:${ss}`;
-    };
-    const formatVideoPath = (value) => {
-      if (!value) return "—";
-      const text = String(value);
-      return text.replace(/^file:\/\/\/+/i, "");
-    };
-
-    const formatBitrateMbps = (bitRate) => {
-      if (bitRate == null || bitRate === "") return "—";
-      const n = Number(bitRate);
-      if (!Number.isFinite(n)) return "—";
-      const mbps = (n / 1_000_000).toFixed(2).replace(/\.?0+$/, "");
-      return `${mbps} Mb/s`;
-    };
-    const formatFps = (fps) => {
-      const n = Number(fps);
-      return Number.isFinite(n) ? n.toFixed(3) : "—";
-    };
-    const vm = (report && report.videoMetadata) || {};
-    const rows = [
-      ["Video path", formatVideoPath(report && report.videoPath ? report.videoPath : "—")],
-      ["Resolution", (vm.width && vm.height) ? (vm.width + " x " + vm.height) : "—"],
-      ["Codec", vm.codec || "—"],
-      ["Pixel format", vm.pixelFormat || vm.pixFmt || "—"],
-      ["Color range", vm.colorRange || "—"],
-      ["Field order", vm.fieldOrder || "—"],
-      ["FPS", formatFps(vm.fps)],
-      ["Duration", formatDuration(vm.duration)],
-      ["Bitrate", formatBitrateMbps(vm.bitRate)]
-    ];
-
-    const meta = document.getElementById("meta");
-    meta.classList.add("meta-list");
-    meta.innerHTML = rows.map(([label, value]) =>
-      '<div class="meta-row"><span class="meta-label">' + escapeHtml(label) + '</span><span class="meta-value">' + escapeHtml(value) + "</span></div>"
-    ).join("");
-  }
-
-  function renderAudioStats(report) {
-    const audio = report && report.audioStats ? report.audioStats : null;
-    const audioStats = document.getElementById("audioStats");
-    if (!audioStats) {
-      return;
-    }
-    if (!audio) {
-      audioStats.classList.remove("meta-list");
-      audioStats.textContent = "No audio stats";
-      return;
-    }
-
-    const toFiniteNumber = (value) => {
-      const n = Number(value);
-      return Number.isFinite(n) ? n : null;
-    };
-    const formatDb = (value) => {
-      const n = toFiniteNumber(value);
-      return n == null ? "—" : (n.toFixed(2) + " dBFS");
-    };
-    const formatLufs = (value) => {
-      const n = toFiniteNumber(value);
-      return n == null ? "—" : (n.toFixed(2) + " LUFS");
-    };
-    const formatDcOffset = (value) => {
-      const n = toFiniteNumber(value);
-      return n == null ? "—" : n.toFixed(3);
-    };
-
-    const rows = [
-      ["True peak", formatDb(audio.truePeak)],
-      ["RMS", formatDb(audio.rms)],
-      ["DC offset", formatDcOffset(audio.dcOffset)]
-    ];
-    if (audio.containsLoudnessData === true) {
-      rows.push(["Integrated loudness", formatLufs(audio.integratedLoudness)]);
-    }
-
-    audioStats.classList.add("meta-list");
-    audioStats.innerHTML = rows.map(([label, value]) =>
-      '<div class="meta-row"><span class="meta-label">' + escapeHtml(label) + '</span><span class="meta-value">' + escapeHtml(value) + "</span></div>"
-    ).join("");
-  }
-
-  function getChartViewportWidth(chartScroll) {
-    return Math.max(1, chartScroll.clientWidth);
-  }
-
-  function applyHorizontalZoom() {
-    const chartScroll = document.getElementById("lumaChartScroll");
-    const chartInner = document.getElementById("lumaChartInner");
-    if (!chartScroll || !chartInner) {
-      return;
-    }
-    const baseWidth = getChartViewportWidth(chartScroll);
-    const zoomedWidth = Math.max(1, baseWidth * xZoomScale);
-    chartInner.style.width = zoomedWidth + "px";
-  }
-
-  function scheduleChartResizeAfterZoom() {
-    if (zoomResizeDebounceTimer !== null) {
-      clearTimeout(zoomResizeDebounceTimer);
-    }
-    zoomResizeDebounceTimer = setTimeout(() => {
-      zoomResizeDebounceTimer = null;
-      if (chart) {
-        chart.resize();
-      }
-    }, ZOOM_RESIZE_DEBOUNCE_MS);
-  }
-  function flushChartZoom() {
-    pendingZoomFrame = null;
-    const payload = pendingWheelPayload;
-    pendingWheelPayload = null;
-    if (!payload) {
-      return;
-    }
-    const { chartScroll, deltaY } = payload;
-    const chartInner = document.getElementById("lumaChartInner");
-    if (!chartScroll || !chartInner) {
-      return;
-    }
-
-    const previousScale = xZoomScale;
-    const zoomFactor = deltaY < 0 ? WHEEL_ZOOM_IN_FACTOR : WHEEL_ZOOM_OUT_FACTOR;
-    const nextScale = Math.max(MIN_X_ZOOM_SCALE, Math.min(MAX_X_ZOOM_SCALE, previousScale * zoomFactor));
-    if (Math.abs(nextScale - previousScale) < 0.0001) {
-      return;
-    }
-    const previousViewportWidth = getChartViewportWidth(chartScroll);
-    const previousContentWidth = Math.max(1, chartInner.scrollWidth);
-    const centerRatio = (chartScroll.scrollLeft + (previousViewportWidth / 2)) / previousContentWidth;
-
-    xZoomScale = nextScale;
-    applyHorizontalZoom();
-    scheduleChartResizeAfterZoom();
-    const nextContentWidth = Math.max(1, chartInner.scrollWidth);
-    const nextAnchorX = centerRatio * nextContentWidth;
-    const maxScrollLeft = Math.max(0, nextContentWidth - getChartViewportWidth(chartScroll));
-    chartScroll.scrollLeft = Math.min(maxScrollLeft, Math.max(0, nextAnchorX - (previousViewportWidth / 2)));
-  }
-
-  function onChartWheel(event) {
-    event.preventDefault();
-    pendingWheelPayload = {
-      chartScroll: event.currentTarget,
-      deltaY: event.deltaY
-    };
-    if (pendingZoomFrame !== null) {
-      return;
-    }
-    pendingZoomFrame = requestAnimationFrame(flushChartZoom);
-  }
-
-  function setupChartZoom() {
-    const chartScroll = document.getElementById("lumaChartScroll");
-    if (!chartScroll || chartScroll.dataset.zoomInitialized === "true") {
-      return;
-    }
-    chartScroll.addEventListener("wheel", onChartWheel, { passive: false });
-    chartScroll.dataset.zoomInitialized = "true";
-  }
-
-  function setupOverlayToggleRerender() {
-    const overlayToggle = document.getElementById("overlayToggle");
-    if (!overlayToggle || overlayToggle.dataset.rerenderInitialized === "true") {
-      return;
-    }
-    overlayToggle.addEventListener("change", () => {
-      if (currentPreviewFrame === null) {
-        return;
-      }
-      loadFramePreview(currentPreviewFrame);
-    });
-    overlayToggle.dataset.rerenderInitialized = "true";
-  }
-
-  function drawChart(report) {
-    const frames = report.frameStatsList || [];
-    const labels = frames.map((_, i) => i);
-    const chartScroll = document.getElementById("lumaChartScroll");
-    const rawBitDepth = Number(report && report.videoMetadata ? report.videoMetadata.bitDepth : NaN);
-    const bitDepth = Number.isFinite(rawBitDepth) ? Math.floor(rawBitDepth) : null;
-    const yAxisMax = bitDepth && bitDepth > 0 && bitDepth <= 30
-      ? (Math.pow(2, bitDepth) - 1)
-      : 255;
-
-    xZoomScale = 1;
-    applyHorizontalZoom();
-    if (chartScroll) {
-      chartScroll.scrollLeft = 0;
-    }
-
-    const canvas = document.getElementById("lumaChart");
-    const existingChart = typeof Chart.getChart === "function" ? Chart.getChart(canvas) : null;
-    const data = {
-      labels: labels,
-      datasets: [
-        { label: "YAVG", data: frames.map(f => f.yavg), borderWidth: 1, pointRadius: 0 },
-        { label: "YMAX", data: frames.map(f => f.ymax), borderWidth: 1, pointRadius: 0 },
-        { label: "YMIN", data: frames.map(f => f.ymin), borderWidth: 1, pointRadius: 0 },
-        { label: "YHIGH", data: frames.map(f => f.yhigh), borderWidth: 1, pointRadius: 0 }
-      ]
-    };
-
-    if (existingChart) {
-      existingChart.destroy();
-    }
-    if (chart && chart !== existingChart) {
-      chart.destroy();
-    }
-    chart = null;
-
-    try {
-      chart = new Chart(canvas, {
-        type: "line",
-        data: data,
-        options: {
-          animation: false,
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: {
-            mode: "nearest",
-            intersect: false,
-            axis: "x"
-          },
-          onClick: (evt, _elements, chartInstance) => {
-            const elements = chartInstance.getElementsAtEventForMode(
-              evt,
-              "nearest",
-              { intersect: false, axis: "x" },
-              false
-            );
-            if (!elements || !elements.length) {
-              return;
+    async function parseApiError(response) {
+        const fallback = "HTTP " + response.status;
+        const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+        try {
+            if (contentType.includes("application/json")) {
+                const payload = await response.json();
+                if (payload && (payload.code || payload.message)) {
+                    const code = payload.code ? String(payload.code) : null;
+                    const message = payload.message ? String(payload.message) : fallback;
+                    return code ? (code + ": " + message) : message;
+                }
+                return fallback;
             }
-            const first = elements[0];
-            const frame = first.index != null ? first.index : first._index;
-            if (frame == null) {
-              return;
-            }
-            loadFramePreview(frame);
-          },
-          scales: {
-            x: {
-              title: { display: true, text: "Frame" },
-              ticks: {
-                maxTicksLimit: 16,
-                autoSkip: true
-              }
-            },
-            y: { title: { display: true, text: "Luma" }, min: 0, max: yAxisMax }
-          },
-          plugins: {
-            decimation: {
-              enabled: true,
-              algorithm: "lttb",
-              samples: 1000
-            }
-          }
+            const text = (await response.text()).trim();
+            return text || fallback;
+        } catch (_ignored) {
+            return fallback;
         }
-      });
-    } catch (e) {
-      const orphanChart = typeof Chart.getChart === "function" ? Chart.getChart(canvas) : null;
-      if (orphanChart) {
-        orphanChart.destroy();
-      }
-      chart = null;
-      throw e;
     }
-  }
 
-  async function loadReport() {
-    const meta = document.getElementById("meta");
-    const audioStats = document.getElementById("audioStats");
-    meta.textContent = "Loading...";
-    if (audioStats) {
-      audioStats.textContent = "Loading...";
+    async function fetchWorkdirFiles() {
+        const response = await fetch("/api/videos/workdir-files");
+        if (!response.ok) {
+            throw new Error(await parseApiError(response));
+        }
+        return await response.json();
     }
-    try {
-      const report = await fetchLatestReport();
-      latestReport = report;
-      renderMetadata(report);
-      renderAudioStats(report);
-      drawChart(report);
-    } catch (e) {
-      if (e && e.message === "No report found") {
-        meta.textContent = "No report found";
+
+    function getFilteredWorkdirFiles() {
+        const searchInput = document.getElementById("workdirSearch");
+        const query = searchInput ? searchInput.value.trim().toLowerCase() : "";
+        if (!query) {
+            return allWorkdirFiles;
+        }
+        return allWorkdirFiles.filter((entry) =>
+            String(entry && entry.name ? entry.name : "").toLowerCase().includes(query)
+        );
+    }
+
+    function renderWorkdirFiles(files) {
+        const container = document.getElementById("workdirFiles");
+        if (!container) {
+            return;
+        }
+        if (!Array.isArray(allWorkdirFiles) || allWorkdirFiles.length === 0) {
+            container.classList.remove("workdir-file-list");
+            container.classList.remove("workdir-file-list--scrollable");
+            container.textContent = "No files in configured user workdir";
+            return;
+        }
+
+        if (!Array.isArray(files) || files.length === 0) {
+            container.classList.remove("workdir-file-list");
+            container.classList.remove("workdir-file-list--scrollable");
+            container.textContent = "No files match your search";
+            return;
+        }
+
+        container.classList.add("workdir-file-list");
+        container.classList.toggle("workdir-file-list--scrollable", files.length > WORKDIR_SCROLL_THRESHOLD);
+        container.innerHTML = "";
+        for (const entry of files) {
+            const item = document.createElement("div");
+            item.className = "workdir-file-item";
+            if (entry && entry.path === selectedWorkdirPath) {
+                item.classList.add("workdir-file-item--selected");
+            }
+            item.dataset.path = entry && entry.path ? entry.path : "";
+            item.textContent = entry && entry.name ? entry.name : "";
+            container.appendChild(item);
+        }
+    }
+
+    function getSelectedWorkdirFile() {
+        if (!selectedWorkdirPath) {
+            return null;
+        }
+        return allWorkdirFiles.find((entry) => entry && entry.path === selectedWorkdirPath) || null;
+    }
+
+    function updateAnalyzeSelectionUI() {
+        const analyzeButton = document.getElementById("analyzeButton");
+        const hint = document.getElementById("analyzeSelectionHint");
+        const selected = getSelectedWorkdirFile();
+        if (analyzeButton) {
+            analyzeButton.disabled = !selected;
+        }
+        if (hint) {
+            hint.textContent = selected
+                ? ("Selected: " + selected.name)
+                : "Select a file in Workdir files";
+        }
+    }
+
+    async function loadWorkdirFiles() {
+        const container = document.getElementById("workdirFiles");
+        if (!container) {
+            return;
+        }
+        container.classList.remove("workdir-file-list");
+        container.classList.remove("workdir-file-list--scrollable");
+        container.textContent = "Loading...";
+        try {
+            const files = await fetchWorkdirFiles();
+            allWorkdirFiles = Array.isArray(files) ? files : [];
+            if (!allWorkdirFiles.some((entry) => entry && entry.path === selectedWorkdirPath)) {
+                selectedWorkdirPath = null;
+            }
+            renderWorkdirFiles(getFilteredWorkdirFiles());
+            updateAnalyzeSelectionUI();
+        } catch (e) {
+            allWorkdirFiles = [];
+            selectedWorkdirPath = null;
+            container.textContent = "Failed to load files: " + e.message;
+            updateAnalyzeSelectionUI();
+        }
+    }
+
+    function setupWorkdirSearch() {
+        const searchInput = document.getElementById("workdirSearch");
+        if (!searchInput || searchInput.dataset.searchInitialized === "true") {
+            return;
+        }
+        searchInput.addEventListener("input", () => {
+            renderWorkdirFiles(getFilteredWorkdirFiles());
+        });
+        searchInput.dataset.searchInitialized = "true";
+    }
+
+    function setupWorkdirPicker() {
+        const container = document.getElementById("workdirFiles");
+        if (!container || container.dataset.pickerInitialized === "true") {
+            return;
+        }
+        container.addEventListener("click", (event) => {
+            const target = event.target;
+            if (!(target instanceof Element)) {
+                return;
+            }
+            const item = target.closest(".workdir-file-item");
+            if (!item) {
+                return;
+            }
+            const nextPath = item.dataset.path || null;
+            selectedWorkdirPath = nextPath;
+            renderWorkdirFiles(getFilteredWorkdirFiles());
+            updateAnalyzeSelectionUI();
+        });
+        container.dataset.pickerInitialized = "true";
+    }
+
+    async function analyzeSelectedWorkdirFile() {
+        const selected = getSelectedWorkdirFile();
+        const status = document.getElementById("analyzeStatus");
+        const button = document.getElementById("analyzeButton");
+        if (!selected) {
+            if (status) {
+                status.textContent = "Select a file first";
+            }
+            return;
+        }
+
+        if (button) {
+            button.disabled = true;
+        }
+        if (status) {
+            status.textContent = "Analyzing " + selected.name + "...";
+        }
+
+        try {
+            const response = await fetch("/api/videos/analyze-by-path", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    path: selected.path,
+                    analyzeAudio: !!document.getElementById("analyzeAudioCheckbox").checked,
+                    analyzeAudioExtended: !!document.getElementById("calculateLoudnessCheckbox").checked
+                })
+            });
+            if (!response.ok) {
+                throw new Error(await parseApiError(response));
+            }
+            if (status) {
+                status.textContent = "Analysis complete";
+            }
+            await loadWorkdirFiles();
+            await loadReport();
+        } catch (e) {
+            if (status) {
+                status.textContent = "Analyze failed: " + e.message;
+            }
+        } finally {
+            updateAnalyzeSelectionUI();
+        }
+    }
+
+    function setupAnalyzeButton() {
+        const button = document.getElementById("analyzeButton");
+        if (!button || button.dataset.analyzeInitialized === "true") {
+            return;
+        }
+        button.addEventListener("click", analyzeSelectedWorkdirFile);
+        button.dataset.analyzeInitialized = "true";
+
+        // wire checkboxes dependency
+        const analyzeAudioCheckbox = document.getElementById("analyzeAudioCheckbox");
+        const calculateLoudnessCheckbox = document.getElementById("calculateLoudnessCheckbox");
+        if (analyzeAudioCheckbox && calculateLoudnessCheckbox) {
+            // ensure initial state (preserve checked state even when disabled)
+            calculateLoudnessCheckbox.disabled = !analyzeAudioCheckbox.checked;
+            let preservedLoudness = calculateLoudnessCheckbox.checked;
+            analyzeAudioCheckbox.addEventListener("change", () => {
+                calculateLoudnessCheckbox.disabled = !analyzeAudioCheckbox.checked;
+                if (analyzeAudioCheckbox.checked) {
+                    calculateLoudnessCheckbox.checked = preservedLoudness;
+                } else {
+                    preservedLoudness = calculateLoudnessCheckbox.checked;
+                }
+            });
+            calculateLoudnessCheckbox.addEventListener("change", () => {
+                preservedLoudness = calculateLoudnessCheckbox.checked;
+            });
+        }
+    }
+
+    async function fetchLatestReport() {
+        const response = await fetch("/api/videos/reports/latest");
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error("No report found");
+            }
+            const detail = await parseApiError(response);
+            throw new Error(detail);
+        }
+        return await response.json();
+    }
+
+    function renderMetadata(report) {
+
+        const formatDuration = (value) => {
+            if (!value) return "—";
+            if (typeof value !== "string") return String(value);
+
+            const simple = value.match(/^(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/);
+            if (simple) {
+                return `${simple[1]}:${simple[2]}:${simple[3]}`;
+            }
+
+            const iso = value.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/);
+            if (!iso) return value;
+
+            const h = Number(iso[1] || 0);
+            const m = Number(iso[2] || 0);
+            const s = Number(iso[3] || 0);
+            const totalSeconds = Math.floor(h * 3600 + m * 60 + s);
+            const hh = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+            const mm = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+            const ss = String(totalSeconds % 60).padStart(2, "0");
+            return `${hh}:${mm}:${ss}`;
+        };
+        const formatVideoPath = (value) => {
+            if (!value) return "—";
+            const text = String(value);
+            return text.replace(/^file:\/\/\/+/i, "");
+        };
+
+        const formatBitrateMbps = (bitRate) => {
+            if (bitRate == null || bitRate === "") return "—";
+            const n = Number(bitRate);
+            if (!Number.isFinite(n)) return "—";
+            const mbps = (n / 1_000_000).toFixed(2).replace(/\.?0+$/, "");
+            return `${mbps} Mb/s`;
+        };
+        const formatFps = (fps) => {
+            const n = Number(fps);
+            return Number.isFinite(n) ? n.toFixed(3) : "—";
+        };
+        const vm = (report && report.videoMetadata) || {};
+        const rows = [
+            ["Video path", formatVideoPath(report && report.videoPath ? report.videoPath : "—")],
+            ["Resolution", (vm.width && vm.height) ? (vm.width + " x " + vm.height) : "—"],
+            ["Codec", vm.codec || "—"],
+            ["Pixel format", vm.pixelFormat || vm.pixFmt || "—"],
+            ["Color range", vm.colorRange || "—"],
+            ["Field order", vm.fieldOrder || "—"],
+            ["FPS", formatFps(vm.fps)],
+            ["Duration", formatDuration(vm.duration)],
+            ["Bitrate", formatBitrateMbps(vm.bitRate)]
+        ];
+
+        const meta = document.getElementById("meta");
+        meta.classList.add("meta-list");
+        meta.innerHTML = rows.map(([label, value]) =>
+            '<div class="meta-row"><span class="meta-label">' + escapeHtml(label) + '</span><span class="meta-value">' + escapeHtml(value) + "</span></div>"
+        ).join("");
+    }
+
+    function renderAudioStats(report) {
+        const audio = report && report.audioStats ? report.audioStats : null;
+        const audioStats = document.getElementById("audioStats");
+        if (!audioStats) {
+            return;
+        }
+        if (!audio) {
+            audioStats.classList.remove("meta-list");
+            audioStats.textContent = "No audio stats";
+            return;
+        }
+
+        const toFiniteNumber = (value) => {
+            const n = Number(value);
+            return Number.isFinite(n) ? n : null;
+        };
+        const formatDb = (value) => {
+            const n = toFiniteNumber(value);
+            return n == null ? "—" : (n.toFixed(2) + " dBFS");
+        };
+        const formatLufs = (value) => {
+            const n = toFiniteNumber(value);
+            return n == null ? "—" : (n.toFixed(2) + " LUFS");
+        };
+        const formatDcOffset = (value) => {
+            const n = toFiniteNumber(value);
+            return n == null ? "—" : n.toFixed(3);
+        };
+
+        const rows = [
+            ["True peak", formatDb(audio.truePeak)],
+            ["RMS", formatDb(audio.rms)],
+            ["DC offset", formatDcOffset(audio.dcOffset)]
+        ];
+        if (audio.containsLoudnessData === true) {
+            rows.push(["Integrated loudness", formatLufs(audio.integratedLoudness)]);
+        }
+
+        audioStats.classList.add("meta-list");
+        audioStats.innerHTML = rows.map(([label, value]) =>
+            '<div class="meta-row"><span class="meta-label">' + escapeHtml(label) + '</span><span class="meta-value">' + escapeHtml(value) + "</span></div>"
+        ).join("");
+    }
+
+    function getChartViewportWidth(chartScroll) {
+        return Math.max(1, chartScroll.clientWidth);
+    }
+
+    function applyHorizontalZoom() {
+        const chartScroll = document.getElementById("lumaChartScroll");
+        const chartInner = document.getElementById("lumaChartInner");
+        if (!chartScroll || !chartInner) {
+            return;
+        }
+        const baseWidth = getChartViewportWidth(chartScroll);
+        const zoomedWidth = Math.max(1, baseWidth * xZoomScale);
+        chartInner.style.width = zoomedWidth + "px";
+    }
+
+    function scheduleChartResizeAfterZoom() {
+        if (zoomResizeDebounceTimer !== null) {
+            clearTimeout(zoomResizeDebounceTimer);
+        }
+        zoomResizeDebounceTimer = setTimeout(() => {
+            zoomResizeDebounceTimer = null;
+            if (chart) {
+                chart.resize();
+            }
+        }, ZOOM_RESIZE_DEBOUNCE_MS);
+    }
+
+    function flushChartZoom() {
+        pendingZoomFrame = null;
+        const payload = pendingWheelPayload;
+        pendingWheelPayload = null;
+        if (!payload) {
+            return;
+        }
+        const {chartScroll, deltaY} = payload;
+        const chartInner = document.getElementById("lumaChartInner");
+        if (!chartScroll || !chartInner) {
+            return;
+        }
+
+        const previousScale = xZoomScale;
+        const zoomFactor = deltaY < 0 ? WHEEL_ZOOM_IN_FACTOR : WHEEL_ZOOM_OUT_FACTOR;
+        const nextScale = Math.max(MIN_X_ZOOM_SCALE, Math.min(MAX_X_ZOOM_SCALE, previousScale * zoomFactor));
+        if (Math.abs(nextScale - previousScale) < 0.0001) {
+            return;
+        }
+        const previousViewportWidth = getChartViewportWidth(chartScroll);
+        const previousContentWidth = Math.max(1, chartInner.scrollWidth);
+        const centerRatio = (chartScroll.scrollLeft + (previousViewportWidth / 2)) / previousContentWidth;
+
+        xZoomScale = nextScale;
+        applyHorizontalZoom();
+        scheduleChartResizeAfterZoom();
+        const nextContentWidth = Math.max(1, chartInner.scrollWidth);
+        const nextAnchorX = centerRatio * nextContentWidth;
+        const maxScrollLeft = Math.max(0, nextContentWidth - getChartViewportWidth(chartScroll));
+        chartScroll.scrollLeft = Math.min(maxScrollLeft, Math.max(0, nextAnchorX - (previousViewportWidth / 2)));
+    }
+
+    function onChartWheel(event) {
+        event.preventDefault();
+        pendingWheelPayload = {
+            chartScroll: event.currentTarget,
+            deltaY: event.deltaY
+        };
+        if (pendingZoomFrame !== null) {
+            return;
+        }
+        pendingZoomFrame = requestAnimationFrame(flushChartZoom);
+    }
+
+    function setupChartZoom() {
+        const chartScroll = document.getElementById("lumaChartScroll");
+        if (!chartScroll || chartScroll.dataset.zoomInitialized === "true") {
+            return;
+        }
+        chartScroll.addEventListener("wheel", onChartWheel, {passive: false});
+        chartScroll.dataset.zoomInitialized = "true";
+    }
+
+    function setupOverlayToggleRerender() {
+        const overlayToggle = document.getElementById("overlayToggle");
+        if (!overlayToggle || overlayToggle.dataset.rerenderInitialized === "true") {
+            return;
+        }
+        overlayToggle.addEventListener("change", () => {
+            if (currentPreviewFrame === null) {
+                return;
+            }
+            loadFramePreview(currentPreviewFrame);
+        });
+        overlayToggle.dataset.rerenderInitialized = "true";
+    }
+
+    function drawChart(report) {
+        const frames = report.frameStatsList || [];
+        const labels = frames.map((_, i) => i);
+        const chartScroll = document.getElementById("lumaChartScroll");
+        const rawBitDepth = Number(report && report.videoMetadata ? report.videoMetadata.bitDepth : NaN);
+        const bitDepth = Number.isFinite(rawBitDepth) ? Math.floor(rawBitDepth) : null;
+        const yAxisMax = bitDepth && bitDepth > 0 && bitDepth <= 30
+            ? (Math.pow(2, bitDepth) - 1)
+            : 255;
+
+        xZoomScale = 1;
+        applyHorizontalZoom();
+        if (chartScroll) {
+            chartScroll.scrollLeft = 0;
+        }
+
+        const canvas = document.getElementById("lumaChart");
+        const existingChart = typeof Chart.getChart === "function" ? Chart.getChart(canvas) : null;
+        const data = {
+            labels: labels,
+            datasets: [
+                {label: "YAVG", data: frames.map(f => f.yavg), borderWidth: 1, pointRadius: 0},
+                {label: "YMAX", data: frames.map(f => f.ymax), borderWidth: 1, pointRadius: 0},
+                {label: "YMIN", data: frames.map(f => f.ymin), borderWidth: 1, pointRadius: 0},
+                {label: "YHIGH", data: frames.map(f => f.yhigh), borderWidth: 1, pointRadius: 0}
+            ]
+        };
+
+        if (existingChart) {
+            existingChart.destroy();
+        }
+        if (chart && chart !== existingChart) {
+            chart.destroy();
+        }
+        chart = null;
+
+        try {
+            chart = new Chart(canvas, {
+                type: "line",
+                data: data,
+                options: {
+                    animation: false,
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: "nearest",
+                        intersect: false,
+                        axis: "x"
+                    },
+                    onClick: (evt, _elements, chartInstance) => {
+                        const elements = chartInstance.getElementsAtEventForMode(
+                            evt,
+                            "nearest",
+                            {intersect: false, axis: "x"},
+                            false
+                        );
+                        if (!elements || !elements.length) {
+                            return;
+                        }
+                        const first = elements[0];
+                        const frame = first.index != null ? first.index : first._index;
+                        if (frame == null) {
+                            return;
+                        }
+                        loadFramePreview(frame);
+                    },
+                    scales: {
+                        x: {
+                            title: {display: true, text: "Frame"},
+                            ticks: {
+                                maxTicksLimit: 16,
+                                autoSkip: true
+                            }
+                        },
+                        y: {title: {display: true, text: "Luma"}, min: 0, max: yAxisMax}
+                    },
+                    plugins: {
+                        decimation: {
+                            enabled: true,
+                            algorithm: "lttb",
+                            samples: 1000
+                        }
+                    }
+                }
+            });
+        } catch (e) {
+            const orphanChart = typeof Chart.getChart === "function" ? Chart.getChart(canvas) : null;
+            if (orphanChart) {
+                orphanChart.destroy();
+            }
+            chart = null;
+            throw e;
+        }
+    }
+
+    async function loadReport() {
+        const meta = document.getElementById("meta");
+        const audioStats = document.getElementById("audioStats");
+        meta.textContent = "Loading...";
         if (audioStats) {
-          audioStats.textContent = "No report found";
+            audioStats.textContent = "Loading...";
         }
-      } else {
-        meta.textContent = "Failed to load report: " + e.message;
-        if (audioStats) {
-          audioStats.textContent = "Failed to load report: " + e.message;
+        try {
+            const report = await fetchLatestReport();
+            latestReport = report;
+            renderMetadata(report);
+            renderAudioStats(report);
+            drawChart(report);
+        } catch (e) {
+            if (e && e.message === "No report found") {
+                meta.textContent = "No report found";
+                if (audioStats) {
+                    audioStats.textContent = "No report found";
+                }
+            } else {
+                meta.textContent = "Failed to load report: " + e.message;
+                if (audioStats) {
+                    audioStats.textContent = "Failed to load report: " + e.message;
+                }
+            }
         }
-      }
     }
-  }
 
-  async function loadFramePreview(frame) {
-    currentPreviewFrame = frame;
-    const videoPath = latestReport && latestReport.videoPath
-      ? String(latestReport.videoPath).trim()
-      : "";
-    const overlay = document.getElementById("overlayToggle").checked;
-    const info = document.getElementById("previewInfo");
-    const image = document.getElementById("previewImage");
+    async function loadFramePreview(frame) {
+        currentPreviewFrame = frame;
+        const videoPath = latestReport && latestReport.videoPath
+            ? String(latestReport.videoPath).trim()
+            : "";
+        const overlay = document.getElementById("overlayToggle").checked;
+        const info = document.getElementById("previewInfo");
+        const image = document.getElementById("previewImage");
 
 
-    info.textContent = "Loading frame " + frame + "...";
-    try {
-      let url = "/api/videos/frame-preview?frame=" + encodeURIComponent(frame)
-          + "&overlay=" + encodeURIComponent(overlay);
-      if (videoPath) {
-        url += "&path=" + encodeURIComponent(videoPath);
-      }
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(await parseApiError(response));
-      }
-      const blob = await response.blob();
-      if (previewObjectUrl) {
-        URL.revokeObjectURL(previewObjectUrl);
-      }
-      previewObjectUrl = URL.createObjectURL(blob);
-      image.src = previewObjectUrl;
-      info.textContent = "Frame " + frame;
-    } catch (e) {
-      info.textContent = "Failed to load frame: " + e.message;
+        info.textContent = "Loading frame " + frame + "...";
+        try {
+            let url = "/api/videos/frame-preview?frame=" + encodeURIComponent(frame)
+                + "&overlay=" + encodeURIComponent(overlay);
+            if (videoPath) {
+                url += "&path=" + encodeURIComponent(videoPath);
+            }
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(await parseApiError(response));
+            }
+            const blob = await response.blob();
+            if (previewObjectUrl) {
+                URL.revokeObjectURL(previewObjectUrl);
+            }
+            previewObjectUrl = URL.createObjectURL(blob);
+            image.src = previewObjectUrl;
+            info.textContent = "Frame " + frame;
+        } catch (e) {
+            info.textContent = "Failed to load frame: " + e.message;
+        }
     }
-  }
 
-  setupChartZoom();
-  setupOverlayToggleRerender();
-  setupWorkdirSearch();
-  setupWorkdirPicker();
-  setupAnalyzeButton();
-  window.addEventListener("resize", applyHorizontalZoom);
-  loadWorkdirFiles();
-  loadReport();
+    setupChartZoom();
+    setupOverlayToggleRerender();
+    setupWorkdirSearch();
+    setupWorkdirPicker();
+    setupAnalyzeButton();
+    window.addEventListener("resize", applyHorizontalZoom);
+    loadWorkdirFiles();
+    loadReport();
 </script>
 </body>
 </html>
