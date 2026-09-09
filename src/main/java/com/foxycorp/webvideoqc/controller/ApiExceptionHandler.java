@@ -34,6 +34,9 @@ public class ApiExceptionHandler {
     @ExceptionHandler(FFprobeException.class)
     public ResponseEntity<ErrorResponse> ffprobeFailure(FFprobeException ex) {
         String message = ex.getMessage() == null ? "Failed to read video metadata" : ex.getMessage();
+        if (message.contains("Invalid data found")){
+            return build(HttpStatus.NO_CONTENT, "INVALID_FILE", message);
+        }
         if (message.contains("No video stream found")) {
             return build(HttpStatus.INTERNAL_SERVER_ERROR, "UNPROCESSABLE_VIDEO", message);
         }

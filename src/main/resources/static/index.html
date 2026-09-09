@@ -36,7 +36,7 @@
         <div class="placeholder"></div>
     </section>
 
-    <section class="panel-row2">
+    <section class="panel-row2 panel-row2--no-audio">
         <section class="panel panel-spacer">
             <div class="placeholder"></div>
         </section>
@@ -46,9 +46,9 @@
             <div id="meta">No data</div>
         </section>
 
-        <section class="panel panel-audio-stats">
+        <section class="panel panel-audio-stats panel-audio-stats--hidden" id="audioStatsPanel" hidden>
             <h2 class="panel-title">AudioStats</h2>
-            <div id="audioStats">No data</div>
+            <div id="audioStats"></div>
         </section>
     </section>
 
@@ -391,6 +391,18 @@
         ).join("");
     }
 
+    function setAudioStatsPanelVisible(visible) {
+        const panel = document.getElementById("audioStatsPanel");
+        const row = panel ? panel.closest(".panel-row2") : document.querySelector(".panel-row2");
+        if (panel) {
+            panel.hidden = !visible;
+            panel.classList.toggle("panel-audio-stats--hidden", !visible);
+        }
+        if (row) {
+            row.classList.toggle("panel-row2--no-audio", !visible);
+        }
+    }
+
     function renderAudioStats(report) {
         const audio = report && report.audioStats ? report.audioStats : null;
         const audioStats = document.getElementById("audioStats");
@@ -399,7 +411,8 @@
         }
         if (!audio) {
             audioStats.classList.remove("meta-list");
-            audioStats.textContent = "No audio stats";
+            audioStats.innerHTML = "";
+            setAudioStatsPanelVisible(false);
             return;
         }
 
@@ -429,10 +442,11 @@
             rows.push(["Integrated loudness", formatLufs(audio.integratedLoudness)]);
         }
 
-        audioStats.classList.add("meta-list");
+        audioStats.classList.add("meta-list", "meta-list--compact");
         audioStats.innerHTML = rows.map(([label, value]) =>
-            '<div class="meta-row"><span class="meta-label">' + escapeHtml(label) + '</span><span class="meta-value">' + escapeHtml(value) + "</span></div>"
+            '<div class="meta-row meta-row--compact"><span class="meta-label">' + escapeHtml(label) + '</span><span class="meta-value">' + escapeHtml(value) + "</span></div>"
         ).join("");
+        setAudioStatsPanelVisible(true);
     }
 
     function getChartViewportWidth(chartScroll) {
@@ -626,11 +640,8 @@
 
     async function loadReport() {
         const meta = document.getElementById("meta");
-        const audioStats = document.getElementById("audioStats");
         meta.textContent = "Loading...";
-        if (audioStats) {
-            audioStats.textContent = "Loading...";
-        }
+        setAudioStatsPanelVisible(false);
         try {
             const report = await fetchLatestReport();
             latestReport = report;
@@ -638,16 +649,11 @@
             renderAudioStats(report);
             drawChart(report);
         } catch (e) {
+            setAudioStatsPanelVisible(false);
             if (e && e.message === "No report found") {
                 meta.textContent = "No report found";
-                if (audioStats) {
-                    audioStats.textContent = "No report found";
-                }
             } else {
                 meta.textContent = "Failed to load report: " + e.message;
-                if (audioStats) {
-                    audioStats.textContent = "Failed to load report: " + e.message;
-                }
             }
         }
     }

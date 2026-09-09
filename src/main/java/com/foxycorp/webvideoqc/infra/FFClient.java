@@ -163,7 +163,7 @@ public class FFClient {
         } catch (IOException e) {
             throw new FFprobeException("Unable to execute ffprobe", e);
         } finally {
-            if (env.acceptsProfiles(Profiles.of("dev"))) {
+            if (env.acceptsProfiles(Profiles.of("prod"))) {
                 try {
                     Files.deleteIfExists(statsFile);
                 } catch (IOException e) {
@@ -225,7 +225,7 @@ public class FFClient {
         } catch (IOException e) {
             throw new FFmpegException("Unable to execute ffmpeg", e);
         } finally {
-            if (env.acceptsProfiles(Profiles.of("dev"))) {
+            if (env.acceptsProfiles(Profiles.of("prod"))) {
                 try {
                     Files.deleteIfExists(statsFile);
                 } catch (IOException e) {
@@ -290,7 +290,7 @@ public class FFClient {
         } catch (IOException e) {
             throw new FFmpegException("Unable to execute ffmpeg", e);
         } finally {
-            if (env.acceptsProfiles(Profiles.of("dev"))) {
+            if (env.acceptsProfiles(Profiles.of("prod"))) {
                 try {
                     Files.deleteIfExists(loudnessStatsFile);
                 } catch (IOException e) {
