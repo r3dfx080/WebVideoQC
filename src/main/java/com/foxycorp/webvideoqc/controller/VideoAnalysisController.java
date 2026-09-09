@@ -1,9 +1,11 @@
 package com.foxycorp.webvideoqc.controller;
 
 import com.foxycorp.webvideoqc.model.AnalyzeRequest;
+import com.foxycorp.webvideoqc.model.QcIssue;
 import com.foxycorp.webvideoqc.model.VideoMetadata;
 import com.foxycorp.webvideoqc.model.VideoStats;
 import com.foxycorp.webvideoqc.model.WorkdirFileEntry;
+import com.foxycorp.webvideoqc.service.QcEvaluationService;
 import com.foxycorp.webvideoqc.service.VideoAnalysisService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -23,11 +26,17 @@ import java.util.List;
 @RequestMapping("/api/videos")
 public class VideoAnalysisController {
     private final VideoAnalysisService videoAnalysisService;
+    private final QcEvaluationService qcEvaluationService;
 
     private final ObjectMapper objectMapper;
 
-    public VideoAnalysisController(VideoAnalysisService videoAnalysisService, ObjectMapper objectMapper) {
+    public VideoAnalysisController(
+            VideoAnalysisService videoAnalysisService,
+            QcEvaluationService qcEvaluationService,
+            ObjectMapper objectMapper
+    ) {
         this.videoAnalysisService = videoAnalysisService;
+        this.qcEvaluationService = qcEvaluationService;
         this.objectMapper = objectMapper;
     }
 
@@ -44,7 +53,7 @@ public class VideoAnalysisController {
     }
 
     @GetMapping("/reports/latest")
-    public ResponseEntity<VideoStats> latestReport() {
+    public ResponseEntity<ObjectNode> latestReport() {
         Path reportPath = Path.of(System.getProperty("user.dir"), "latest.video-stats.json");
 
         if (!reportPath.toFile().exists()) {
@@ -52,7 +61,10 @@ public class VideoAnalysisController {
         }
 
         VideoStats stats = objectMapper.readValue(reportPath.toFile(), VideoStats.class);
-        return ResponseEntity.ok(stats);
+        List<QcIssue> qcIssues = qcEvaluationService.evaluate(stats);
+        ObjectNode body = objectMapper.valueToTree(stats);
+        body.set("qcIssues", objectMapper.valueToTree(qcIssues));
+        return ResponseEntity.ok(body);
     }
 
     @GetMapping(value = "/frame-preview", produces = MediaType.IMAGE_JPEG_VALUE)

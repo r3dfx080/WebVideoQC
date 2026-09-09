@@ -22,7 +22,7 @@ public class AudioStats {
     }
 
     public boolean isDCOffsetPresent() {
-        return dcOffset > 1.0;
+        return dcOffset > 5.0;
     }
 
     @JsonProperty

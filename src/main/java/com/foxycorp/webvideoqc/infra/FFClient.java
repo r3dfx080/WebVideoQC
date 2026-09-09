@@ -500,24 +500,29 @@ public class FFClient {
             throw new FFprobeException("No video stream found");
         }
 
-        double durationSec = format.path("duration").asDouble(0.0);
-        long bitRate = format.path("bit_rate").asLong(0L);
         int width = videoStream.path("width").asInt(0);
         int height = videoStream.path("height").asInt(0);
         String codec = videoStream.path("codec_name").asString("unknown");
+        String SAR = videoStream.path("sample_aspect_ratio").asString("unknown");
+        String DAR = videoStream.path("display_aspect_ratio").asString("unknown");
         String pixFmt = videoStream.path("pix_fmt").asString("unknown");
-        String fieldOrder = videoStream.path("field_order").asString("unknown");
         String colorRange = videoStream.path("color_range").asString("unknown");
-        String avgFrameRate = videoStream.path("avg_frame_rate").asString("0/0");
-        double fps = parseFps(avgFrameRate);
+        String colorSpace = videoStream.path("color_space").asString("unknown");
+        String fieldOrder = videoStream.path("field_order").asString("unknown");
+        double fps = parseFps(videoStream.path("avg_frame_rate").asString("0/0"));
+        double durationSec = format.path("duration").asDouble(0.0);
+        long bitRate = format.path("bit_rate").asLong(0L);
         int bitDepth = videoStream.path("bits_per_raw_sample").asInt(0);
 
         return new VideoMetadata(
                 width,
                 height,
                 codec,
+                SAR,
+                DAR,
                 pixFmt,
                 colorRange,
+                colorSpace,
                 fieldOrder,
                 fps,
                 Duration.ofMillis((long) (durationSec * 1000)),

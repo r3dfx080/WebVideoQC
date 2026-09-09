@@ -25,7 +25,19 @@ public class VideoStats {
     }
 
     public boolean isPAL() {
-        return videoMetadata.height() == 576;
+        return videoMetadata.height() == 576 && isPALFramerate();
+    }
+
+    public boolean isNTSC() {
+        return (videoMetadata.height() == 480 || videoMetadata.height() == 486) && isNTSCFramerate();
+    }
+
+    public boolean isPALFramerate() {
+        return Math.abs(videoMetadata.fps() - 25.0) < 0.1 || Math.abs(videoMetadata.fps() - 50.0) < 0.1;
+    }
+
+    public boolean isNTSCFramerate() {
+        return Math.abs(videoMetadata.fps() - 30.0) < 0.1 || Math.abs(videoMetadata.fps() - 60.0) < 0.1;
     }
 
     public boolean isInterlaced() {
