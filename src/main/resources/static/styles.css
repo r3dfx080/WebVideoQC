@@ -165,11 +165,67 @@ h1 {
     min-height: 0;
 }
 
-.panel-row2 .panel-spacer {
+.panel-row2 .panel-qc {
     grid-column: 1;
     grid-row: 1;
     border-right: 2px solid #111;
     border-bottom: 2px solid #111;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+}
+
+.qc-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.qc-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid #e2e5e9;
+    background: #fff;
+    box-sizing: border-box;
+}
+
+.qc-card--warning {
+    border-color: #e2a8a8;
+    background: #fff5f5;
+}
+
+.qc-card--caution {
+    border-color: #e2c98a;
+    background: #fffbf0;
+}
+
+.qc-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.qc-card--warning .qc-label {
+    color: #b42318;
+}
+
+.qc-card--caution .qc-label {
+    color: #b54708;
+}
+
+.qc-text {
+    font-size: 13px;
+    color: #202124;
+    word-break: break-word;
+    line-height: 1.35;
 }
 
 .panel-row2 .panel-metadata {

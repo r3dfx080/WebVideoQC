@@ -37,8 +37,11 @@
     </section>
 
     <section class="panel-row2 panel-row2--no-audio">
-        <section class="panel panel-spacer">
-            <div class="placeholder"></div>
+        <section class="panel panel-qc" id="qcPanel">
+            <h2 class="panel-title panel-title--compact">QC</h2>
+            <div class="qc-list" id="qcIssues">
+                <div class="placeholder">No issues</div>
+            </div>
         </section>
 
         <section class="panel panel-metadata">
@@ -331,6 +334,56 @@
         return await response.json();
     }
 
+    function renderQcIssues(report) {
+        const container = document.getElementById("qcIssues");
+        if (!container) {
+            return;
+        }
+
+        const raw = report && Array.isArray(report.qcIssues) ? report.qcIssues : [];
+        const warnings = [];
+        const cautions = [];
+        for (const issue of raw) {
+            if (!issue) {
+                continue;
+            }
+            const severity = String(issue.severity || "").toUpperCase();
+            const message = issue.message != null ? String(issue.message) : "";
+            if (!message) {
+                continue;
+            }
+            if (severity === "WARNING") {
+                warnings.push(message);
+            } else if (severity === "CAUTION") {
+                cautions.push(message);
+            }
+        }
+
+        if (warnings.length === 0 && cautions.length === 0) {
+            container.innerHTML = '<div class="placeholder">No issues</div>';
+            return;
+        }
+
+        const cards = [];
+        for (const message of warnings) {
+            cards.push(
+                '<div class="qc-card qc-card--warning">'
+                + '<span class="qc-label">Warning</span>'
+                + '<span class="qc-text">' + escapeHtml(message) + '</span>'
+                + '</div>'
+            );
+        }
+        for (const message of cautions) {
+            cards.push(
+                '<div class="qc-card qc-card--caution">'
+                + '<span class="qc-label">Caution</span>'
+                + '<span class="qc-text">' + escapeHtml(message) + '</span>'
+                + '</div>'
+            );
+        }
+        container.innerHTML = cards.join("");
+    }
+
     function renderMetadata(report) {
 
         const formatDuration = (value) => {
@@ -375,9 +428,13 @@
         const rows = [
             ["Video path", formatVideoPath(report && report.videoPath ? report.videoPath : "—")],
             ["Resolution", (vm.width && vm.height) ? (vm.width + " x " + vm.height) : "—"],
+            ["SAR", vm.SAR || vm.sar || "—"],
+            ["DAR", vm.DAR || vm.dar || "—"],
             ["Codec", vm.codec || "—"],
             ["Pixel format", vm.pixelFormat || vm.pixFmt || "—"],
+            ["Bit depth", vm.bitDepth || "—"],
             ["Color range", vm.colorRange || "—"],
+            ["Color space", vm.colorSpace || "—"],
             ["Field order", vm.fieldOrder || "—"],
             ["FPS", formatFps(vm.fps)],
             ["Duration", formatDuration(vm.duration)],
@@ -640,16 +697,24 @@
 
     async function loadReport() {
         const meta = document.getElementById("meta");
+        const qcIssues = document.getElementById("qcIssues");
         meta.textContent = "Loading...";
+        if (qcIssues) {
+            qcIssues.innerHTML = '<div class="placeholder">Loading...</div>';
+        }
         setAudioStatsPanelVisible(false);
         try {
             const report = await fetchLatestReport();
             latestReport = report;
+            renderQcIssues(report);
             renderMetadata(report);
             renderAudioStats(report);
             drawChart(report);
         } catch (e) {
             setAudioStatsPanelVisible(false);
+            if (qcIssues) {
+                qcIssues.innerHTML = '<div class="placeholder">No issues</div>';
+            }
             if (e && e.message === "No report found") {
                 meta.textContent = "No report found";
             } else {
