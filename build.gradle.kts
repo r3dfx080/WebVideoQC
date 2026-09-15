@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.foxycorp"
-version = "0.3"
+version = "0.4"
 description = "WebVideoQC"
 
 java {
@@ -48,12 +48,17 @@ tasks.register<Copy>("copyWindowsStartScript") {
     into(layout.buildDirectory.dir("libs"))
 }
 
-// use constant filename for start script
-tasks.named<BootJar>("bootJar") {
-    archiveFileName.set("WebVideoQC.jar")
+tasks.named<BootJar>("bootJar"){
+    archiveFileName.set("WebVideoQC-${project.version}.jar")
 }
 
-tasks.named("bootJar") {
-    finalizedBy("copyApplicationProperties", "copyWindowsStartScript")
-}
+tasks.register<Zip>("windowsDist") {
+    dependsOn("bootJar", "copyApplicationProperties", "copyWindowsStartScript")
+    archiveBaseName.set("WebVideoQC")
+    archiveVersion.set(version.toString())
+    archiveClassifier.set("windows")
 
+    from(layout.buildDirectory.dir("libs")) {
+        include("WebVideoQC-${project.version}.jar", "application.properties", "start.bat")
+    }
+}
