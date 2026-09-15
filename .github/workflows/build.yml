@@ -30,7 +30,7 @@ jobs:
         run: ./gradlew windowsDist --no-daemon
 
       - name: Upload Windows zip
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: WebVideoQC-windows
           path: build/distributions/*-windows.zip
