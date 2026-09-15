@@ -512,7 +512,7 @@ public class FFClient {
         double fps = parseFps(videoStream.path("avg_frame_rate").asString("0/0"));
         double durationSec = format.path("duration").asDouble(0.0);
         long bitRate = format.path("bit_rate").asLong(0L);
-        int bitDepth = videoStream.path("bits_per_raw_sample").asInt(0);
+        int bitDepth = deriveBitDepth(videoStream.path("bits_per_raw_sample").asInt(0), pixFmt);
 
         return new VideoMetadata(
                 width,
@@ -547,5 +547,40 @@ public class FFClient {
         } catch (NumberFormatException e) {
             return 0.0;
         }
+    }
+
+    /**
+     * Derives the per-channel bit depth, falling back to the pixel format when
+     * ffprobe leaves bits_per_raw_sample
+     * formats (yuv420p10le -> 10, yuv420p -> 8); packed RGB encodes total bits
+     * across 3 channels (rgb24 -> 8, rgb48le -> 16). Unrecognized formats
+     * (nv12, yuyv422, etc.) default to 8-bit.
+     */
+    private int deriveBitDepth(int bitsPerRawSample, String pixFmt) {
+        if (bitsPerRawSample > 0) {
+            return bitsPerRawSample;
+        }
+        if (pixFmt == null || "unknown".equals(pixFmt)) {
+            return 0;
+        }
+        String fmt = pixFmt.trim();
+        if (fmt.startsWith("yuv") || fmt.startsWith("gray") || fmt.startsWith("gbrp") || fmt.startsWith("p0")) {
+            Matcher m = Pattern.compile("(\\d+)(?:le|be)?$").matcher(fmt);
+            if (m.find()) {
+                return Integer.parseInt(m.group(1));
+            }
+            return 8;
+        }
+        if (fmt.startsWith("rgb") || fmt.startsWith("bgr")) {
+            Matcher m = Pattern.compile("(\\d+)(?:le|be)?$").matcher(fmt);
+            if (m.find()) {
+                int n = Integer.parseInt(m.group(1));
+                if (n % 3 == 0) {
+                    return n / 3;
+                }
+            }
+            return 8;
+        }
+        return 8;
     }
 }

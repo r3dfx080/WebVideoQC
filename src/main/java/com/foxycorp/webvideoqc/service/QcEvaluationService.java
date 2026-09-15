@@ -64,12 +64,6 @@ public class QcEvaluationService {
                             "or ignore this message"
             ));
         }
-//        if (hasLumaOutsideBroadcastRange(stats)) {
-//            issues.add(new QcIssue(
-//                    QcIssue.Severity.WARNING,
-//                    "Luma levels outside broadcast range"
-//            ));
-//        }
 
         if (stats.areAudioStatsPresent()) {
             AudioStats audioStats = stats.getAudioStats().get();
@@ -87,11 +81,21 @@ public class QcEvaluationService {
             }
             if (audioStats.containsLoudnessData()) {
                 float loudness = audioStats.getIntegratedLoudness();
-                if (Math.abs(loudness - EBU_R128_TARGET_LUFS) > EBU_R128_TOLERANCE_LU) {
+                float delta = loudness - (float) EBU_R128_TARGET_LUFS;
+                if ((delta > 0) && (delta > EBU_R128_TOLERANCE_LU)) {
                     issues.add(new QcIssue(
                             QcIssue.Severity.CAUTION,
                             String.format(
                                     "Integrated loudness %.2f LUFS outside EBU R128 target (−23 ±1 LU)",
+                                    loudness
+                            )
+                    ));
+                    // integrated loudness is lower than -25 LUFS
+                } else if (delta < -1) {
+                    issues.add(new QcIssue(
+                            QcIssue.Severity.CAUTION,
+                            String.format(
+                                    "The loudness [%.2f LUFS] is too low",
                                     loudness
                             )
                     ));
