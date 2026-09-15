@@ -45,7 +45,7 @@ public class VideoStats {
     }
 
     public boolean isLimitedRange() {
-        return videoMetadata.colorRange().equals("tv");
+        return !videoMetadata.colorRange().equals("pc");
     }
 
     @JsonProperty

@@ -30,6 +30,16 @@ public class QcEvaluationService {
         List<QcIssue> issues = new ArrayList<>();
 
         VideoMetadata metadata = stats.getVideoMetadata();
+
+        if (stats.isLimitedRange() && hasLumaOutsideBroadcastRange(stats)) {
+            issues.add(new QcIssue(
+                    QcIssue.Severity.WARNING,
+                    "More than 30% of frames have luma (Y) values outside of " +
+                            "broadcast range! Adjust the range tag accordingly or " +
+                            "use limiter"
+            ));
+        }
+
         if (stats.isInterlaced() && metadata.codec().startsWith("h")) {
             issues.add(new QcIssue(
                     QcIssue.Severity.WARNING,
@@ -114,24 +124,19 @@ public class QcEvaluationService {
         }
 
         int bitDepth = metadata.bitDepth();
-        int maxCode = (1 << bitDepth) - 1;
-
-        if (!stats.isLimitedRange()) {
-            for (VideoStats.FrameStats frame : frames) {
-                if (frame.getYmin() < 0 || frame.getYmax() > maxCode) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
         int black = limitedRangeBlack(bitDepth);
         int white = limitedRangeWhite(bitDepth);
+
+        int outOfRangeFramesCount = 0;
         for (VideoStats.FrameStats frame : frames) {
             if (frame.getYmin() < black || frame.getYmax() > white) {
-                return true;
+                outOfRangeFramesCount++;
             }
         }
+        // return true if more than 30% of all frames contain Y values outside
+        // of broadcast range
+        if (outOfRangeFramesCount > (frames.size() * 0.3)) return true;
+
         return false;
     }
 
