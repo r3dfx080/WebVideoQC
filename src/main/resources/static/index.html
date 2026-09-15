@@ -22,7 +22,7 @@
         <h2 class="panel-title">Analyze / Load</h2>
         <button class="action-button" disabled id="analyzeButton" type="button">Analyze selected file</button>
         <div class="analyze-options" id="analyzeOptions">
-            <label class="analyze-option"><input checked id="analyzeAudioCheckbox" type="checkbox"> Analyze
+            <label class="analyze-option"><input id="analyzeAudioCheckbox" type="checkbox"> Analyze
                 audio</label>
             <label class="analyze-option"><input id="calculateLoudnessCheckbox" type="checkbox"> Calculate
                 loudness</label>
@@ -695,6 +695,22 @@
         }
     }
 
+    function clearFramePreview(message) {
+        const info = document.getElementById("previewInfo");
+        const image = document.getElementById("previewImage");
+        currentPreviewFrame = null;
+        if (previewObjectUrl) {
+            URL.revokeObjectURL(previewObjectUrl);
+            previewObjectUrl = null;
+        }
+        if (image) {
+            image.removeAttribute("src");
+        }
+        if (info) {
+            info.textContent = message || "Click a chart point to preview a frame";
+        }
+    }
+
     async function loadReport() {
         const meta = document.getElementById("meta");
         const qcIssues = document.getElementById("qcIssues");
@@ -703,6 +719,7 @@
             qcIssues.innerHTML = '<div class="placeholder">Loading...</div>';
         }
         setAudioStatsPanelVisible(false);
+        clearFramePreview();
         try {
             const report = await fetchLatestReport();
             latestReport = report;
@@ -711,6 +728,7 @@
             renderAudioStats(report);
             drawChart(report);
         } catch (e) {
+            latestReport = null;
             setAudioStatsPanelVisible(false);
             if (qcIssues) {
                 qcIssues.innerHTML = '<div class="placeholder">No issues</div>';
@@ -730,8 +748,7 @@
             : "";
         const overlay = document.getElementById("overlayToggle").checked;
         const info = document.getElementById("previewInfo");
-        const image = document.getElementById("previewImage");
-
+const image = document.getElementById("previewImage");
 
         info.textContent = "Loading frame " + frame + "...";
         try {
@@ -752,7 +769,7 @@
             image.src = previewObjectUrl;
             info.textContent = "Frame " + frame;
         } catch (e) {
-            info.textContent = "Failed to load frame: " + e.message;
+            clearFramePreview("Failed to load frame: " + e.message);
         }
     }
 
