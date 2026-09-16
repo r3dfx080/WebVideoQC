@@ -19,6 +19,13 @@ public class QcEvaluationService {
     private static final double EBU_R128_TARGET_LUFS = -23.0;
     private static final double EBU_R128_TOLERANCE_LU = 1.0;
 
+    // 8-bit codes forgiven past 16/235; scaled with bit depth
+    int LUMA_SOFT_CODES_8BIT = 2;
+    double LUMA_EXCURSION_POWER = 2.0;
+    // frame counts as "bad" only if soft weight exceeds this threshold
+    double LUMA_BAD_FRAME_TAU = 0.05;
+    double LUMA_BAD_FRAME_SHARE = 0.30;
+
     /**
      * @return warnings first, then cautions
      */
@@ -116,6 +123,7 @@ public class QcEvaluationService {
         return issues;
     }
 
+
     private boolean hasLumaOutsideBroadcastRange(VideoStats stats) {
         List<VideoStats.FrameStats> frames = stats.getFrameStatsList();
         VideoMetadata metadata = stats.getVideoMetadata();
@@ -126,19 +134,51 @@ public class QcEvaluationService {
         int bitDepth = metadata.bitDepth();
         int black = limitedRangeBlack(bitDepth);
         int white = limitedRangeWhite(bitDepth);
+        int maxCode = (1 << bitDepth) - 1;
+        int softCodes = LUMA_SOFT_CODES_8BIT << (bitDepth - 8);
 
-        int outOfRangeFramesCount = 0;
+        int badFrames = 0;
         for (VideoStats.FrameStats frame : frames) {
-            if (frame.getYmin() < black || frame.getYmax() > white) {
-                outOfRangeFramesCount++;
+            double w = frameLumaSoftWeight(
+                    frame.getYmin(), frame.getYmax(),
+                    black, white, maxCode, softCodes, LUMA_EXCURSION_POWER);
+            if (w > LUMA_BAD_FRAME_TAU) {
+                badFrames++;
             }
         }
-        // return true if more than 30% of all frames contain Y values outside
-        // of broadcast range
-        if (outOfRangeFramesCount > (frames.size() * 0.3)) return true;
 
-        return false;
+        return badFrames > frames.size() * LUMA_BAD_FRAME_SHARE;
     }
+
+
+    /**
+     * @return per-frame weight in [0, 1]: max of soft low / soft high excursion
+     */
+    private static double frameLumaSoftWeight(
+            int ymin, int ymax,
+            int black, int white, int maxCode,
+            int softCodes, double p) {
+        int lowOver = Math.max(0, black - ymin);
+        int highOver = Math.max(0, ymax - white);
+        double wLow = softExcursion(lowOver, black, softCodes, p);
+        double wHigh = softExcursion(highOver, maxCode - white, softCodes, p);
+        return Math.max(wLow, wHigh);
+    }
+
+
+    private static double softExcursion(int overshootCodes, int fullIllegalSpan, int softCodes, double p) {
+        int dead = Math.min(softCodes, fullIllegalSpan - 1); // keep at least 1 code of span
+        int punishable = fullIllegalSpan - dead;
+        double t = (overshootCodes - dead) / (double) punishable;
+        if (t <= 0.0) {
+            return 0.0;
+        }
+        if (t >= 1.0) {
+            return 1.0;
+        }
+        return Math.pow(t, p);
+    }
+
 
     private static int limitedRangeBlack(int bitDepth) {
         return 16 << (bitDepth - 8);
