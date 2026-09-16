@@ -9,6 +9,9 @@ WebVideoQC is a Spring Boot app with a browser UI. Point it at a work folder, pi
 
 ---
 
+<img width="1894" height="1726" alt="web-ui" src="https://github.com/user-attachments/assets/a77bb7bc-fa2f-48c2-b6d0-403ad58480ea" />
+
+
 ## Features
 
 - List media files from a configured work directory (newest first)
