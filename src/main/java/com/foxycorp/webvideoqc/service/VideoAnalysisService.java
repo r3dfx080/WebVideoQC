@@ -22,6 +22,10 @@ public class VideoAnalysisService {
     private final FFClient ffClient;
     private final ObjectMapper objectMapper;
     private final String userWorkdir;
+    private final List<String> allowedExtensions = List.of(".mp4", ".m4v", ".mov", ".mkv",
+            ".webm", ".avi", ".mpg", ".mpeg", ".m2v", ".ts",
+            ".m2ts", ".mts", ".vob", ".mxf", ".wmv", ".flv",
+            ".3gp", ".ogv", ".dv");
 
     public VideoAnalysisService(
             FFClient ffClient,
@@ -119,6 +123,7 @@ public class VideoAnalysisService {
         try (var paths = Files.list(workdirPath)) {
             return paths
                     .filter(Files::isRegularFile)
+                    .filter(this::hasVideoExtension)
                     .sorted(Comparator.comparingLong(VideoAnalysisService::safeLastModifiedMillis).reversed())
                     .map(path -> new WorkdirFileEntry(
                             path.getFileName().toString(),
@@ -128,6 +133,13 @@ public class VideoAnalysisService {
         } catch (IOException e) {
             throw new IllegalArgumentException("Unable to read configured user workdir: " + workdirPath);
         }
+    }
+
+    private boolean hasVideoExtension(Path path) {
+        String name = path.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        String ext = (dot >= 0) ? name.substring(dot) : "";
+        return allowedExtensions.contains(ext);
     }
 
     public boolean videoExists(Path path) {

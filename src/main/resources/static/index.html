@@ -422,7 +422,8 @@
         };
         const formatFps = (fps) => {
             const n = Number(fps);
-            return Number.isFinite(n) ? n.toFixed(3) : "—";
+            if (!Number.isFinite(n)) return "—";
+            return n.toFixed(3).replace(/\.?0+$/, "");
         };
         const vm = (report && report.videoMetadata) || {};
         const rows = [
